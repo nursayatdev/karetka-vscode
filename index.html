@@ -1,0 +1,1280 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Каретка</title>
+<link rel="icon" type="image/png" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<style>
+  :root{
+    --bg:#08090b;
+    --paper-dark:#5d636a;
+    --paper-mid:#62686f;
+    --ink:#16171a;
+    --ui:#1a1c20;
+    --ui-line:#2a2d33;
+    --ui-fg:#c9ccd2;
+    --amber:#ffb347;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ui-fg);
+    font-family:"Segoe UI",system-ui,sans-serif;user-select:none;cursor:default}
+  body.typing{cursor:none}
+
+  #room{position:fixed;inset:0;
+    background:radial-gradient(120% 80% at 50% 70%,#15171b 0%,#0a0b0d 55%,#050506 100%)}
+
+  #stage{position:fixed;inset:0;perspective:1500px;perspective-origin:50% 35%}
+  #tilt{position:absolute;left:0;top:0;width:100%;height:100%;transform-style:preserve-3d;transition:none !important;
+    transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+
+  /* Paper */
+  #paperAnchor{position:absolute;left:50%;top:0;transition:transform .7s cubic-bezier(.3,.7,.2,1)}
+  /* the sheet wrapping over the rubber platen: a lit cylindrical band of paper */
+  #curl{position:absolute;height:34px;transform:translateZ(29px);pointer-events:none;overflow:hidden;
+    border-radius:3px 3px 0 0;
+    background:linear-gradient(180deg,rgba(98,104,111,0) 0%,#666c73 18%,#8a9096 46%,#a8adb2 58%,#6c7278 76%,#2f3337 100%);
+    box-shadow:inset 1px 0 0 rgba(255,255,255,.25),inset -1px 0 0 rgba(255,255,255,.25)}
+  #curlHot{position:absolute;top:0;width:700px;height:100%;margin-left:-350px;
+    background:radial-gradient(ellipse 50% 120% at 50% 55%,rgba(255,252,240,.85),rgba(255,252,240,0) 70%);transition:opacity .5s}
+  body.lampOff #curlHot{opacity:.1}
+  #paper{position:absolute;left:0;top:0;will-change:transform}
+  #paper.anim,#paper.anim .light,#paper.anim .glow{transition:transform .085s cubic-bezier(.3,.7,.3,1),opacity .5s}
+  #paper.cr,#paper.cr .light,#paper.cr .glow{transition:transform .42s cubic-bezier(.65,0,.25,1),opacity .5s}
+  #paper.view,#paper.view .light,#paper.view .glow{transition:transform .25s ease-out,opacity .5s}
+  /* A4 sheet: 210 x 297 */
+  .page{position:absolute;left:0;overflow:hidden;border-radius:2px;
+    background:
+      linear-gradient(180deg,rgba(0,0,0,.28) 0,rgba(0,0,0,0) 26px),
+      linear-gradient(90deg,rgba(0,0,0,.22),rgba(0,0,0,0) 5%,rgba(0,0,0,0) 95%,rgba(0,0,0,.22)),
+      var(--paper-mid);
+    /* paper thickness: lit top & side edges, a backing sheet behind, soft cast shadow */
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.55),inset 1px 0 0 rgba(255,255,255,.3),inset -1px 0 0 rgba(255,255,255,.3),
+      0 -2px 0 #9ca1a6, 0 -3.5px 0 #50555b,
+      7px -9px 0 -1px #45494f, 7px -10px 0 -1px #7d8288,
+      0 40px 90px rgba(0,0,0,.85), 0 0 2px rgba(0,0,0,.6)}
+  .grain{position:absolute;inset:0;opacity:.16;mix-blend-mode:multiply;pointer-events:none;background-size:256px 256px}
+  .pnum{position:absolute;left:0;right:0;text-align:center;font-family:"Courier New",monospace;font-weight:700;color:var(--ink);opacity:.55}
+  .light{position:absolute;left:0;top:0;width:1200px;height:760px;pointer-events:none;will-change:transform;
+    filter:blur(26px);opacity:.95}
+  .cone{position:absolute;inset:0;
+    background:
+      radial-gradient(ellipse 22% 30% at 50% 100%,rgba(255,252,242,1) 0%,rgba(255,250,236,.0) 100%),
+      radial-gradient(ellipse 50% 85% at 50% 100%,rgba(250,247,238,.95) 0%,rgba(236,234,226,.5) 40%,rgba(220,222,224,.12) 75%,rgba(220,222,224,0) 100%);
+    clip-path:polygon(46% 100%,54% 100%,96% 4%,4% 4%)}
+  .glow{position:absolute;left:0;top:0;width:1600px;height:1100px;pointer-events:none;
+    background:radial-gradient(ellipse 50% 50% at 50% 70%,rgba(225,228,232,.3),rgba(0,0,0,0) 70%)}
+  body.lampOff .light{opacity:0}
+  body.lampOff .glow{opacity:.35}
+
+  .text{position:absolute;left:0;top:0;
+    font-family:"Courier New",Courier,monospace;font-weight:700;color:var(--ink);white-space:pre}
+  .ln{position:absolute;left:0;height:1px}
+  .c{position:absolute;top:0;display:block;text-align:center}
+  .c.fresh{animation:strike .16s ease-out}
+  @keyframes strike{0%{opacity:0;transform:var(--t) translateY(-3px) scale(1.25);filter:blur(1.2px)}
+    35%{opacity:1;filter:blur(.2px)}100%{transform:var(--t)}}
+
+  /* Platen rail */
+  /* rubber platen roller */
+  #rail{position:absolute;height:34px;transform:translateZ(30px);border-radius:8px;
+    background:
+      linear-gradient(180deg,#4a5059 0%,#262a31 22%,#15181d 55%,#0b0d10 85%,#050607 100%);
+    box-shadow:0 12px 30px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.18),inset 0 -2px 4px rgba(0,0,0,.6)}
+  #railRings{position:absolute;left:0;right:0;top:9px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14) 20%,rgba(255,255,255,.22) 50%,rgba(255,255,255,.14) 80%,transparent);filter:blur(.5px)}
+  /* chrome guide rod the carriage rides on */
+  #rod{position:absolute;height:9px;transform:translateZ(34px);border-radius:5px;
+    background:linear-gradient(180deg,#f2f4f6 0%,#9aa1a9 35%,#3d4249 70%,#7b828a 100%);
+    box-shadow:0 4px 8px rgba(0,0,0,.6)}
+  /* knurled platen knobs */
+  .knob{position:absolute;width:48px;height:92px;transform:translateZ(36px);border-radius:14px;
+    background:
+      repeating-linear-gradient(90deg,rgba(0,0,0,.22) 0 2px,rgba(255,255,255,.12) 2px 3px,rgba(0,0,0,0) 3px 5px),
+      linear-gradient(90deg,#4f555c 0%,#c9ced3 30%,#eef0f2 42%,#a3a9b0 60%,#4a4f56 100%);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.4),inset 0 -3px 6px rgba(0,0,0,.45),0 14px 24px rgba(0,0,0,.7)}
+  .knob::after{content:"";position:absolute;left:6px;right:6px;top:-6px;height:12px;border-radius:50%;
+    background:radial-gradient(ellipse at 50% 40%,#f4f5f6,#9ea4ab 70%,#5b6168);box-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .guide{position:absolute;width:10px;height:30px;transform:translateZ(33px);border-radius:3px;
+    background:linear-gradient(90deg,#5b6168,#e4e7ea 45%,#8a9098);box-shadow:0 4px 6px rgba(0,0,0,.6)}
+  /* side housings */
+  .pod{position:absolute;width:220px;transform:translateZ(26px);border-radius:44px 44px 18px 18px;-webkit-mask-image:linear-gradient(180deg,#000 60%,transparent);mask-image:linear-gradient(180deg,#000 60%,transparent);
+    background:
+      radial-gradient(ellipse 70% 30% at 50% 0%,rgba(255,252,240,.35),rgba(255,252,240,0) 70%),
+      var(--brush),
+      linear-gradient(180deg,hsl(var(--mh),var(--ms),74%) 0%,hsl(var(--mh),var(--ms),62%) 18%,hsl(var(--mh),var(--ms),47%) 45%,hsl(var(--mh),var(--ms),26%) 80%,hsl(var(--mh),var(--ms),15%) 100%);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.7),inset 0 0 0 1px rgba(0,0,0,.25),inset 0 -40px 60px rgba(0,0,0,.35),
+      0 30px 60px rgba(0,0,0,.75)}
+  .pod::before{content:"";position:absolute;inset:8px 8px auto 8px;height:calc(100% - 16px);border-radius:38px 38px 12px 12px;
+    border:1px solid rgba(0,0,0,.14);box-shadow:0 1px 0 rgba(255,255,255,.18)}
+  .dial{position:absolute;left:50%;top:66px;width:86px;height:86px;margin-left:-43px;border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 50%,#d9dde1 0 22px,#2a2e34 22px 24px,transparent 24px),
+      repeating-conic-gradient(#8d939a 0 4deg,#c9cdd2 4deg 8deg);
+    box-shadow:0 6px 12px rgba(0,0,0,.6),inset 0 2px 0 rgba(255,255,255,.5),0 0 0 4px #33373d,0 0 0 5px rgba(255,255,255,.12)}
+  .dial i{position:absolute;left:50%;top:9px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:#ffad3b;box-shadow:0 0 8px rgba(255,170,60,.9)}
+  .podlbl{position:absolute;left:0;right:0;text-align:center;font:700 10px "Segoe UI",sans-serif;letter-spacing:.28em;color:rgba(20,22,25,.55);
+    text-shadow:0 1px 0 rgba(255,255,255,.35)}
+  .grille{position:absolute;left:30px;right:30px;top:70px;height:96px;border-radius:18px;
+    background:radial-gradient(circle,#0d0f12 0 2.2px,transparent 2.6px) 0 0/10px 10px,linear-gradient(180deg,#6d737a,#4b5057);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.35)}
+  .pled{position:absolute;left:50%;top:186px;width:12px;height:12px;margin-left:-6px;border-radius:50%;
+    background:radial-gradient(circle,#fff3c4,#ffad3b 55%,#c26b00);box-shadow:0 0 0 3px #1a1c20,0 0 10px rgba(255,170,60,.9),0 0 26px rgba(255,150,40,.35)}
+  #lever{position:absolute;width:150px;height:12px;transform:translateZ(40px) rotate(-28deg);transform-origin:100% 50%;
+    border-radius:6px;background:linear-gradient(180deg,#f5f6f7,#a8aeb5 45%,#4b5057);
+    box-shadow:0 8px 12px rgba(0,0,0,.6);transition:transform .25s cubic-bezier(.3,1.6,.5,1)}
+  #lever::before{content:"";position:absolute;left:-14px;top:-8px;width:28px;height:28px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,#b3b9bf 45%,#4a4f56);box-shadow:0 6px 10px rgba(0,0,0,.6)}
+  #lever::after{content:"";position:absolute;right:-10px;top:-6px;width:24px;height:24px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%,#d7dbdf,#5b6168 70%);box-shadow:0 0 0 3px #2a2d32}
+  #lever.pull{transform:translateZ(40px) rotate(-6deg);transition:transform .09s ease-in}
+  /* machine body below the platen */
+  #deck{position:absolute;transform:translateZ(22px);border-radius:26px 26px 0 0;-webkit-mask-image:linear-gradient(180deg,#000 55%,transparent);mask-image:linear-gradient(180deg,#000 55%,transparent);
+    background:
+      radial-gradient(ellipse 30% 60px at 50% 0%,rgba(255,250,235,.28),rgba(0,0,0,0) 100%),
+      linear-gradient(180deg,#80868d 0%,#4a4f56 3%,#26292e 12%,#16181b 35%,#0a0b0d 70%,#060607 100%);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.45),0 -10px 30px rgba(0,0,0,.6)}
+  #deck::before{content:"";position:absolute;left:4%;right:4%;top:10px;height:6px;border-radius:3px;background:#07080a;box-shadow:0 1px 0 rgba(255,255,255,.15)}
+  #railShade{position:absolute;left:-80%;width:260%;height:110px;transform:translateZ(10px);pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.45) 70%,rgba(0,0,0,.6))}
+  #underShade{position:absolute;left:-80%;width:260%;height:120vh;transform:translateZ(20px);pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.85) 40%,#050506)}
+
+  /* Head */
+  /* shared "carriage" material: satin aluminium with a warm lamp reflection */
+  :root{
+    --mh:212;--ms:8%;
+    --alu:linear-gradient(180deg,hsl(var(--mh),var(--ms),79%) 0%,hsl(var(--mh),var(--ms),67%) 22%,hsl(var(--mh),var(--ms),57%) 55%,hsl(var(--mh),var(--ms),44%) 82%,hsl(var(--mh),var(--ms),35%) 100%);
+    --brush:repeating-linear-gradient(90deg,rgba(255,255,255,.014) 0 1px,rgba(0,0,0,.012) 1px 2px,rgba(255,255,255,0) 2px 3px);
+  }
+  #headShadow{position:absolute;left:50%;width:190px;height:34px;margin-left:-95px;transform:translateZ(31px);
+    background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,.75),rgba(0,0,0,0) 70%);filter:blur(4px)}
+  #head{position:absolute;left:50%;width:150px;height:68px;margin-left:-75px;transform:translateZ(46px);
+    border-radius:34px;
+    background:
+      radial-gradient(ellipse 60% 55% at 50% -12%,rgba(255,252,240,.75),rgba(255,252,240,0) 70%),
+      var(--brush),var(--alu);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,.85),
+      inset 0 -1px 0 rgba(255,255,255,.18),
+      inset 0 -8px 14px rgba(0,0,0,.28),
+      inset 0 0 0 1px rgba(0,0,0,.22),
+      0 2px 0 #4a4f55, 0 4px 0 #34383d, 0 5px 0 #24272b,
+      0 16px 26px rgba(0,0,0,.7), 0 34px 60px rgba(0,0,0,.45)}
+  #head::before{content:"";position:absolute;left:14px;right:14px;top:3px;height:20px;border-radius:20px 20px 40% 40%;
+    background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0));filter:blur(.5px)}
+  #head::after{content:"";position:absolute;inset:5px;border-radius:29px;border:1px solid rgba(0,0,0,.12);
+    box-shadow:0 1px 0 rgba(255,255,255,.25)}
+  #head.bump{animation:bump .12s ease-out}
+  @keyframes bump{0%{margin-top:1.5px}100%{margin-top:0}}
+  #neck{position:absolute;left:50%;top:-5px;width:26px;height:8px;margin-left:-13px;border-radius:5px 5px 2px 2px;
+    background:linear-gradient(180deg,#3a3f46,#15181c);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 3px rgba(0,0,0,.6)}
+  #leds{position:absolute;left:38px;top:24px;display:flex;gap:8px;z-index:1}
+  .led{position:relative;width:18px;height:18px;border-radius:50%;
+    background:radial-gradient(circle at 50% 60%,#3a3e44,#101215 70%);
+    box-shadow:inset 0 2px 3px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.55),0 -1px 0 rgba(0,0,0,.25)}
+  .led b{position:absolute;inset:4px;border-radius:50%;transition:all .35s;
+    background:radial-gradient(circle at 50% 55%,#4b3a24,#1d1712 80%);box-shadow:inset 0 1px 2px rgba(0,0,0,.9)}
+  .led b::after{content:"";position:absolute;left:2px;top:1.5px;width:4px;height:3px;border-radius:50%;background:rgba(255,255,255,.55);filter:blur(.3px)}
+  .led.on b{background:radial-gradient(circle at 50% 50%,#fff8de 0%,#ffd27a 30%,#ffa62b 62%,#c86a00 100%);
+    box-shadow:0 0 6px 1px rgba(255,170,60,.95),0 0 18px 4px rgba(255,140,30,.45),0 0 34px 8px rgba(255,140,30,.15)}
+  .led.flick b{animation:flick .14s}
+  @keyframes flick{50%{filter:brightness(1.35)}}
+  #bar{position:absolute;left:50%;transform:translateZ(44px)}
+  #stem{position:absolute;left:-3.5px;width:7px;height:46px;border-radius:1.5px;
+    background:linear-gradient(90deg,#0b0c0e 0%,#2a2e34 30%,#5c626a 48%,#2a2e34 62%,#0b0c0e 100%);
+    box-shadow:2px 0 4px rgba(0,0,0,.5)}
+  #cap{position:absolute;left:-19px;width:38px;height:11px;border-radius:2.5px;
+    background:linear-gradient(180deg,#5b616a 0%,#2c3036 30%,#15171a 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 3px 5px rgba(0,0,0,.6)}
+  #slit{position:absolute;left:-25px;width:50px;height:4px;border-radius:2px;
+    background:linear-gradient(90deg,rgba(255,255,255,.6),#fff 20%,#fff 80%,rgba(255,255,255,.6));
+    box-shadow:0 0 6px #fff,0 0 16px rgba(255,255,245,.9),0 0 40px 6px rgba(255,250,230,.45)}
+  body.lampOff #slit{background:#55595f;box-shadow:none}
+  #bar.hit #stem,#bar.hit #cap{animation:hit .11s ease-out}
+  @keyframes hit{0%{transform:translateY(-10px)}100%{transform:translateY(0)}}
+
+  /* UI */
+  .chrome{transition:opacity .6s}
+  body.typing .chrome{opacity:0;pointer-events:none}
+  #brand{position:fixed;left:22px;top:20px;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;
+    background:var(--ui);border:1px solid var(--ui-line);border-radius:999px;font-size:13px;letter-spacing:.02em}
+  #brand b{font-weight:600}
+  #brand img{width:26px;height:26px;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))}
+  #brand{padding:6px 16px 6px 6px}
+  #intro .wordmark{display:block;width:min(560px,80vw);margin:0 auto 26px;border-radius:14px;
+    box-shadow:0 0 0 1px rgba(255,255,255,.06),0 30px 80px rgba(0,0,0,.8),0 0 120px rgba(255,200,120,.08);
+    animation:rise .9s cubic-bezier(.2,.8,.2,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  #stats{position:fixed;right:22px;top:20px;text-align:right;font-size:12px;color:#8a8f97;line-height:1.6}
+  #stats .pill{display:inline-flex;gap:8px;align-items:center;background:var(--ui);border:1px solid var(--ui-line);border-radius:999px;padding:7px 14px;color:var(--ui-fg);font-size:13px}
+  /* 3D key panel in the carriage's material */
+  #tools,#toolsL{position:fixed;right:22px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:11px;
+    padding:14px 12px 16px 18px;border-radius:40px;
+    background:linear-gradient(180deg,#25282d,#16181c);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 6px rgba(0,0,0,.6),0 0 0 1px #0a0b0d,0 20px 50px rgba(0,0,0,.7)}
+  :is(#tools,#toolsL) .sep{height:1px;margin:2px 4px 2px -2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1),transparent)}
+  :is(#tools,#toolsL) button{all:unset;position:relative;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;cursor:pointer;
+    color:#2b2f34;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 8%,rgba(255,252,240,.7),rgba(255,252,240,0) 70%),
+      radial-gradient(circle at 50% 40%,#c3c8cd 0%,#a5abb2 45%,#7c828a 80%,#626870 100%);
+    box-shadow:inset 0 1.5px 0 rgba(255,255,255,.85),inset 0 -3px 5px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.2),
+      0 2px 0 #50555b,0 4px 0 #34383d,0 5px 1px #1c1e21,0 9px 14px rgba(0,0,0,.65);
+    transition:transform .07s,box-shadow .07s,filter .2s}
+  :is(#tools,#toolsL) button:hover{filter:brightness(1.08)}
+  :is(#tools,#toolsL) button:active,:is(#tools,#toolsL) button.press{transform:translateY(4px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.6),inset 0 -1px 3px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.25),
+      0 1px 0 #34383d,0 2px 3px rgba(0,0,0,.6)}
+  :is(#tools,#toolsL) svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+    filter:drop-shadow(0 1px 0 rgba(255,255,255,.55))}
+  :is(#tools,#toolsL) button.tg::before{content:"";position:absolute;left:-12px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;
+    background:radial-gradient(circle,#fff3c4,#ffad3b 60%,#c26b00);box-shadow:0 0 6px rgba(255,170,60,.95),0 0 14px rgba(255,150,40,.4);transition:all .3s}
+  :is(#tools,#toolsL) button.tg.off::before{background:#2a2d31;box-shadow:inset 0 1px 1px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.08)}
+  :is(#tools,#toolsL) button.tg.off{color:#4d5258}
+  :is(#tools,#toolsL) button::after{content:attr(data-tip);position:absolute;right:62px;top:50%;transform:translateY(-50%) translateX(6px);white-space:nowrap;
+    background:#0d0e10;border:1px solid #2a2d33;color:#ddd;font:12px "Segoe UI",sans-serif;padding:6px 10px;border-radius:8px;opacity:0;pointer-events:none;transition:all .15s}
+  :is(#tools,#toolsL) button:hover::after{opacity:1;transform:translateY(-50%)}
+  #toolsL{right:auto;left:22px;padding:14px 18px 16px 12px}
+  #toolsL button::after{right:auto;left:62px;transform:translateY(-50%) translateX(-6px)}
+  #toolsL button:hover::after{transform:translateY(-50%)}
+  #toolsL button.tg::before{left:auto;right:-12px}
+  #toolsL .glyph{font:700 20px "Courier New",monospace;color:#2b2f34;text-shadow:0 1px 0 rgba(255,255,255,.55)}
+  #toolsL button.tg.off .glyph{color:#4d5258}
+  #bRib .dot{position:absolute;right:7px;bottom:7px;width:11px;height:11px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#5a5d62,#0c0d0f);box-shadow:0 0 0 2px #cfd3d7,0 1px 3px rgba(0,0,0,.6);transition:background .3s}
+  #bRib.red .dot{background:radial-gradient(circle at 35% 30%,#ff8a82,#c02a30 60%,#6e1216)}
+  #bInk .meter{position:absolute;left:12px;right:12px;bottom:6px;height:5px;border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden;box-shadow:inset 0 1px 1px rgba(0,0,0,.5)}
+  #bInk .meter b{display:block;height:100%;width:var(--ink,100%);background:linear-gradient(90deg,#14161a,#3c424a);transition:width .3s}
+  #bInk.low .meter b{background:#c02a30}
+  #bInk.low svg{color:#a3222a}
+  #hint{position:fixed;left:50%;top:32px;white-space:nowrap;transform:translateX(-50%);font-size:12.5px;color:#6d727a;text-align:center;letter-spacing:.02em}
+  @media (max-width:1100px){#hint{display:none}}
+  #hint kbd{font-family:inherit;background:#17191d;border:1px solid #2a2d33;border-radius:5px;padding:1px 6px;color:#aab}
+  #toast{position:fixed;left:50%;top:24px;transform:translate(-50%,-8px);background:#000c;border:1px solid #333;border-radius:999px;
+    padding:8px 16px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #intro{position:fixed;inset:0;display:grid;place-items:center;background:rgba(5,5,6,.82);z-index:10;transition:opacity .8s}
+  #intro.hide{opacity:0;pointer-events:none}
+  #intro .card{text-align:center}
+  #intro h1{font-family:"Courier New",monospace;font-weight:700;font-size:44px;letter-spacing:.08em;margin:0 0 10px;color:#e8e6df}
+  #intro p{margin:0;color:#8a8f97;font-size:14px}
+  #intro button{all:unset;margin-top:26px;display:inline-block;padding:11px 26px;border-radius:999px;background:#e8e6df;color:#111;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="room"></div>
+<div id="stage">
+  <div id="tilt">
+    <div id="paperAnchor">
+      <div id="paper"></div>
+    </div>
+    <div id="railShade"></div>
+    <div id="curl"><div id="curlHot"></div></div>
+    <div id="underShade"></div>
+    <div id="deck"></div>
+    <div class="pod" id="podL"><div class="dial"><i></i></div><div class="podlbl" style="top:166px">ИНТЕРВАЛ</div></div>
+    <div class="pod" id="podR"><div class="grille"></div><div class="pled"></div><div class="podlbl" id="podName" style="top:212px">КАРЕТКА</div></div>
+    <div id="rail"><div id="railRings"></div></div>
+    <div id="rod"></div>
+    <div class="guide" id="guideL"></div><div class="guide" id="guideR"></div>
+    <div class="knob" id="knobL"></div><div class="knob" id="knobR"></div>
+    <div id="lever"></div>
+    <div id="bar"><div id="slit"></div><div id="cap"></div><div id="stem"></div></div>
+    <div id="headShadow"></div>
+    <div id="head"><div id="neck"></div><div id="leds"><i class="led" id="ledS"><b></b></i><i class="led" id="ledL"><b></b></i><i class="led" id="ledA"><b></b></i></div></div>
+  </div>
+</div>
+
+<div id="brand" class="chrome">
+  <img src="assets/icon.png" alt="" width="26" height="26">
+  <b>Каретка</b>
+</div>
+<div id="stats" class="chrome"><span class="pill"><span id="wc">0 слов</span><span style="color:#555">·</span><span id="lc">стр. 1</span></span></div>
+
+<div id="tools" class="chrome">
+  <button id="bNew" data-tip="Новый лист  Ctrl+N"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M12 11v6M9 14h6"/></svg></button>
+  <div class="sep"></div>
+  <button id="bSound" class="tg" data-tip="Звук клавиш  Ctrl+M"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>
+  <button id="bAmb" class="tg" data-tip="Атмосфера: дождь  Ctrl+R"><svg viewBox="0 0 24 24"><path d="M7 15a4 4 0 0 1 .5-8A5.5 5.5 0 0 1 18 8a3.5 3.5 0 0 1 0 7z"/><path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2"/></svg></button>
+  <button id="bLamp" class="tg" data-tip="Лампа  Ctrl+L"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg></button>
+  <button id="bView" class="tg" data-tip="Наклон 3D  Ctrl+T"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+  <div class="sep"></div>
+  <button id="bCopy" data-tip="Копировать текст"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>
+  <button id="bSave" data-tip="Сохранить в Word  Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+  <button id="bFull" data-tip="Полный экран  F11"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+
+<div id="toolsL" class="chrome">
+  <button id="bMach" data-tip="Машинка  Ctrl+J"><svg viewBox="0 0 24 24"><path d="M6 11V5h12v6"/><rect x="3" y="11" width="18" height="9" rx="2.5"/><path d="M8 15.5h8"/></svg></button>
+  <div class="sep"></div>
+  <button id="bRib" data-tip="Лента: чёрная / красная  Ctrl+B"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 4.5v3M12 16.5v3M4.5 12h3M16.5 12h3"/></svg><i class="dot"></i></button>
+  <button id="bInk" data-tip="Новая лента  Ctrl+E"><svg viewBox="0 0 24 24"><path d="M19.5 11a7.5 7.5 0 1 0-2.2 5.3"/><path d="M19.5 4.5V11H13"/></svg><i class="meter"><b></b></i></button>
+  <div class="sep"></div>
+  <button id="bPure" class="tg" data-tip="Чистый режим: без стирания  Ctrl+G"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+  <button id="bBold" class="tg" data-tip="Қалың шрифт (Bold) / жіңішке  Ctrl+F"><span class="glyph" style="font-size:17px">Aa</span></button>
+  <button id="bLat" class="tg" data-tip="Қазақ латыны (2021)  Ctrl+H"><span class="glyph">Á</span></button>
+  <div class="sep"></div>
+  <button id="bFiles" data-tip="Открыть папку · файлы  Ctrl+O"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+</div>
+<div id="hint" class="chrome">Печатайте · <kbd>Enter</kbd> возврат каретки · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> — RUN · колесо — листать</div>
+<div id="toast"></div>
+<textarea id="sink" autocomplete="off" autocorrect="off" spellcheck="false" style="position:fixed;left:-9999px;top:0;width:10px;height:10px;opacity:0"></textarea>
+<div id="intro"><div class="card"><img class="wordmark" src="assets/logo-wordmark.png" alt="Каретка"><p>Печатная машинка для мыслей. Включите звук.</p><button id="start">Вставить лист</button></div></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('karetka.'+k); return v===null? d : JSON.parse(v);}catch(e){return d;} },
+  set(k, v){ try{ localStorage.setItem('karetka.'+k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- Layout constants ---------- */
+/* Real typewriter on A4: pica 10 chars/inch, 1" side & top margins, 1.5 line spacing */
+const FONT = 23;
+const meas = document.createElement('canvas').getContext('2d');
+meas.font = `700 ${FONT}px "Courier New", Courier, monospace`;
+const CW = Math.round(meas.measureText('M').width * 100) / 100;
+const INCH = CW * 10;                          // 10 cpi
+const PAGE_W = Math.round(INCH * 8.27);        // 210 mm
+const PAGE_H = Math.round(PAGE_W * 297 / 210); // 297 mm
+const COLS = Math.floor((PAGE_W - 2 * INCH) / CW);
+const ML = Math.round((PAGE_W - COLS * CW) / 2);
+const MT = Math.round(INCH);
+const LH = Math.round(INCH / 4);               // 1.5 spacing (4 lines per inch)
+const LPP = Math.floor((PAGE_H - MT - INCH * 1.1) / LH); // lines per page
+const GAP = 140;                               // space between sheets in the stack
+
+const paper = $('paper');
+const tilt = $('tilt'), anchor = $('paperAnchor'), rail = $('rail'), rings = $('railRings');
+const head = $('head'), bar = $('bar');
+paper.style.width = PAGE_W + 'px';
+
+/* ---------- State ---------- */
+let lines = (store.get('text', '') || '').split('\n');
+let settings = Object.assign({sound:true, amb:false, lamp:true, tiltOn:true, machine:'underwood', ribbon:0, ink:1, pure:false, latin:false, bold:false}, store.get('settings', {}));
+
+/* per-character attributes, one int per char:
+   machine(3 bits) | ribbon colour(1) | struck-out(1) | ink level 0..255 (8 bits) — the paper remembers how every letter was typed */
+const encA = (m, c, k, s) => (m & 7) | ((c & 1) << 3) | ((s & 1) << 4) | (Math.round(Math.max(0, Math.min(1, k)) * 255) << 5);
+const decA = v => ({m: v & 7, c: (v >> 3) & 1, s: (v >> 4) & 1, k: (v >> 5) / 255});
+
+/* the machines: look of the print, ink behaviour, body colour and — above all — the sound */
+const SND = o => Object.assign({hi:1, body:1, low:1, slug:1, clack:1, thump:1, ring:1, bellF:2050, bellD:1, ret:1, rattle:0, electric:0}, o);
+const MACHINES = [
+  {id:'underwood', name:'UNDERWOOD №5', h:212, s:'8%',  font:'"Courier New", Courier, monospace',           w:700, scale:1,    jit:1,   bleed:1.3, alpha:[.62,.38], ink:'#141518', red:'#a3222a', wear:1,
+    snd:SND({})},
+  {id:'olympia',   name:'OLYMPIA SM9',  h:150, s:'16%', font:'"Lucida Console", "Courier New", monospace',  w:400, scale:.97,  jit:.45, bleed:1.0, alpha:[.7,.3],   ink:'#16181b', red:'#a3222a', wear:.9,
+    snd:SND({hi:1.12, body:.9, low:.95, slug:.8, clack:.85, thump:.9, ring:.7, bellF:2350, bellD:.8, ret:.85})},
+  {id:'remington', name:'REMINGTON',    h:28,  s:'26%', font:'"Courier New", Courier, monospace',           w:700, scale:1.04, jit:1.7, bleed:2.0, alpha:[.7,.3],   ink:'#0e0f11', red:'#8f1d24', wear:1.2,
+    snd:SND({hi:.85, body:1.15, low:.8, slug:1.15, clack:1.2, thump:1.35, ring:1.2, bellF:1760, bellD:1.5, ret:1.25})},
+  {id:'selectric', name:'IBM SELECTRIC',h:208, s:'32%', font:'Consolas, "Courier New", monospace',         w:400, scale:1.0,  jit:.15, bleed:.6,  alpha:[.86,.14], ink:'#0f1114', red:'#b3262a', wear:.6,
+    snd:SND({electric:1, hi:.9, body:.8, low:1.1, slug:.55, clack:.5, thump:.6, ring:.3, bellF:2750, bellD:.6, ret:.7})},
+  {id:'romashka',  name:'РОМАШКА',      h:100, s:'14%', font:'"Courier New", Courier, monospace',           w:700, scale:.98,  jit:2.4, bleed:1.8, alpha:[.4,.6],   ink:'#202226', red:'#9c2a2a', wear:1.4,
+    snd:SND({hi:1.1, body:1.3, low:.75, slug:1.1, clack:1.25, thump:.75, ring:1.6, bellF:1500, bellD:.7, ret:1.1, rattle:1})}
+];
+let mi = Math.max(0, MACHINES.findIndex(m => m.id === settings.machine));
+let attrs = store.get('attrs', null); if (!Array.isArray(attrs)) attrs = [];
+(function normAttrs(){
+  const def = encA(0, 0, 1, 0);
+  lines.forEach((ln, li) => { const n = [...ln].length; let a = Array.isArray(attrs[li]) ? attrs[li] : []; while (a.length < n) a.push(def); a.length = n; attrs[li] = a; });
+  attrs.length = lines.length;
+})();
+
+/* which line breaks were made by the typewriter's own margin (soft) and which by Enter (hard) */
+let wrapped = store.get('wrap', null); if (!Array.isArray(wrapped)) wrapped = [];
+wrapped.length = lines.length; for (let i = 0; i < lines.length; i++) wrapped[i] = !!wrapped[i];
+
+/* Kazakh Cyrillic → Latin (the 2021 alphabet) */
+const KZ = {'а':'a','ә':'á','б':'b','в':'v','г':'g','ғ':'ǵ','д':'d','е':'e','ё':'io','ж':'j','з':'z','и':'i','й':'i','к':'k','қ':'q','л':'l','м':'m','н':'n','ң':'ń','о':'o','ө':'ó','п':'p','р':'r','с':'s','т':'t','у':'ý','ұ':'u','ү':'ú','ф':'f','х':'h','һ':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shsh','ъ':'','ы':'y','і':'ı','ь':'','э':'e','ю':'iý','я':'ia'};
+function toLatin(ch, prev, next){
+  const lo = ch.toLowerCase(), m = KZ[lo];
+  if (m === undefined) return ch;
+  if (!m) return '';
+  if (ch === lo) return m;
+  if (lo === 'и' || lo === 'й') return 'İ';
+  const up = c => c && c !== c.toLowerCase();             // ALL-CAPS word: ШАҢЫРАҚ → SHAŃYRAQ, not ShAŃYRAQ
+  if (m.length > 1 && (up(prev) || up(next))) return m.toUpperCase();
+  return m[0].toUpperCase() + m.slice(1);
+}
+let viewOff = 0;
+let railY = 0;
+
+function hash(a,b,c){ let h = 2166136261 ^ a; h = Math.imul(h ^ b, 16777619); h = Math.imul(h ^ c, 16777619); h ^= h>>>13; h = Math.imul(h, 0x5bd1e995); return ((h ^ (h>>>15))>>>0)/4294967296; }
+
+/* ---------- Paper: a real 3D A4 sheet (WebGL) ----------
+   Physics: the sheet is clamped where it leaves the rubber platen and stands up as a
+   cantilever loaded by its own weight. Slope along the sheet (s = distance from the clamp,
+   L = length of paper out of the machine):  θ(s) = θ0 + k·(3L²s − 3Ls² + s³)
+   → curvature is largest right at the platen and the whole sheet leans back more and more
+   (tip angle ∝ L³) as you type further down the page. Below the clamp the sheet wraps
+   around the platen cylinder. Lighting is computed on the real curved surface. */
+const P2 = PAGE_W / 2;
+const THETA0 = 8 * Math.PI / 180;        // lean given by the paper table
+const THETA_FULL = 44 * Math.PI / 180;   // extra tip angle when a whole A4 sheet is out
+const K_BEND = THETA_FULL / Math.pow(PAGE_H, 3);
+const R_PLATEN = 26;
+const PERSP = 1500;
+const TS = Math.min(2, Math.max(1.25, window.devicePixelRatio || 1));
+const TW = Math.round(PAGE_W * TS), TH = Math.round(PAGE_H * TS);
+const FONT_CSS = `700 ${FONT}px "Courier New", Courier, monospace`;
+
+/* paper stock: warm white with grain and fibres */
+const bgc = document.createElement('canvas'); bgc.width = TW; bgc.height = TH;
+(() => {
+  const g = bgc.getContext('2d');
+  g.fillStyle = '#c3c8cf'; g.fillRect(0, 0, TW, TH);
+  const im = g.getImageData(0, 0, TW, TH), d = im.data;
+  for (let i = 0; i < d.length; i += 4){ const n = (Math.random() - .5) * 13; d[i] += n; d[i+1] += n; d[i+2] += n * .9; }
+  g.putImageData(im, 0, 0);
+  g.globalAlpha = .04; g.strokeStyle = '#6b6658'; g.lineWidth = .7;
+  for (let i = 0; i < 1100; i++){ const x = Math.random()*TW, y = Math.random()*TH, a = Math.random()*Math.PI, l = (6 + Math.random()*26) * TS;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a)*l, y + Math.sin(a)*l); g.stroke(); }
+  g.globalAlpha = 1;
+})();
+const tex = document.createElement('canvas'); tex.width = TW; tex.height = TH;
+const tg = tex.getContext('2d');
+let texPage = -1;
+const fresh = [];            // struck characters still animating {li, ci, t0}
+const dirtyLines = new Set();
+
+let lastFont = '';
+function drawChar(ch, li, ci, k){
+  const a = decA((attrs[li] && attrs[li][ci]) || 0), M = MACHINES[a.m] || MACHINES[0];
+  const r1 = hash(li, ci, 1), r2 = hash(li, ci, 2), r3 = hash(li, ci, 3), r4 = hash(li, ci, 4);
+  const x = ML + ci * CW + CW / 2 + (r1 - .5) * 1.1 * M.jit;
+  const y = MT + (li % LPP) * LH + LH * .72 + (r2 - .5) * 1.6 * M.jit;
+  const font = `${settings.bold ? 700 : 400} ${(FONT * M.scale).toFixed(1)}px ${M.font}`;
+  if (font !== lastFont) { tg.font = font; lastFont = font; }
+  tg.setTransform(TS, 0, 0, TS, 0, 0);
+  tg.translate(x, y); tg.rotate((r3 - .5) * 3.2 * M.jit * Math.PI / 180);
+  if (k !== 1) tg.scale(k, k);
+  tg.fillStyle = a.c ? M.red : M.ink;
+  // a worn ribbon prints paler and patchier
+  const al = Math.min(1, (M.alpha[0] + r4 * M.alpha[1]) * (.22 + .78 * a.k) * Math.max(.25, 1 - (k - 1) * 3) * (settings.bold ? 1 : 1.12));
+  tg.globalAlpha = al;
+  tg.shadowColor = a.c ? 'rgba(120,20,26,.8)' : 'rgba(10,10,14,.85)';
+  tg.shadowBlur = (r2 > .8 ? M.bleed * 1.6 : M.bleed) * TS;
+  tg.fillText(ch, 0, 0);
+  if (a.s) { tg.globalAlpha = Math.min(1, al * 1.05); tg.rotate(.04); tg.fillText('x', .5, -.4); tg.fillText('x', -.3, .3); }
+}
+function paintRegion(top, bot, r0, r1){
+  const y0 = Math.max(0, Math.floor(top * TS)), y1 = Math.min(TH, Math.ceil(bot * TS));
+  if (y1 <= y0) return;
+  tg.save();
+  tg.setTransform(1, 0, 0, 1, 0, 0);
+  tg.drawImage(bgc, 0, y0, TW, y1 - y0, 0, y0, TW, y1 - y0);
+  tg.beginPath(); tg.rect(0, y0, TW, y1 - y0); tg.clip();
+  lastFont = ''; tg.textAlign = 'center'; tg.textBaseline = 'alphabetic';
+  const now = performance.now();
+  for (let r = Math.max(0, r0); r <= Math.min(LPP - 1, r1); r++){
+    const li = texPage * LPP + r; if (li >= lines.length) break;
+    let ci = 0;
+    for (const ch of lines[li]){
+      if (ch !== ' '){
+        const f = fresh.find(q => q.li === li && q.ci === ci);
+        drawChar(ch, li, ci, f ? 1 + .28 * (1 - Math.min(1, (now - f.t0) / 140)) : 1);
+      }
+      ci++;
+    }
+  }
+  if (bot > PAGE_H - INCH){ // page number
+    tg.setTransform(TS, 0, 0, TS, 0, 0); tg.font = FONT_CSS; tg.fillStyle = '#141518'; tg.globalAlpha = .5; tg.shadowBlur = 0;
+    tg.fillText(`— ${texPage + 1} —`, P2, PAGE_H - INCH * .55);
+  }
+  tg.restore();
+  upload(y0, y1 - y0);
+}
+function paintPage(){ paintRegion(0, PAGE_H, 0, LPP - 1); }
+function paintLine(r){ paintRegion(MT + r * LH - 7, MT + (r + 1) * LH + 9, r - 1, r + 1); }
+function markDirty(li){ dirtyLines.add(li); }
+
+/* ---- WebGL ---- */
+const glc = document.createElement('canvas');
+glc.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none';
+$('stage').insertBefore(glc, tilt);
+let gl = glc.getContext('webgl2', {antialias: true, alpha: true});
+const GL2 = !!gl;
+if (!gl) gl = glc.getContext('webgl', {antialias: true, alpha: true});
+const VS = `
+attribute vec3 aPos; attribute vec3 aNor; attribute vec2 aUV;
+uniform vec2 uScreen; uniform vec2 uOrigin; uniform float uFit; uniform vec2 uRot;
+uniform vec2 uPO; uniform float uD; uniform float uPush; uniform float uShift;
+varying vec3 vP; varying vec3 vN; varying vec2 vUV;
+void main(){
+  vec3 q = aPos + aNor * uPush + vec3(uShift, 0., 0.);
+  vec3 p = q - vec3(uOrigin, 0.);
+  float cb = cos(uRot.y), sb = sin(uRot.y);
+  p = vec3(p.x*cb + p.z*sb, p.y, -p.x*sb + p.z*cb);
+  float ca = cos(uRot.x), sa = sin(uRot.x);
+  p = vec3(p.x, p.y*ca - p.z*sa, p.y*sa + p.z*ca);
+  p.xy *= uFit; p.xy += uOrigin;
+  float s = uD / (uD - p.z);
+  vec2 sc = uPO + (p.xy - uPO) * s;
+  gl_Position = vec4(sc.x / uScreen.x * 2. - 1., 1. - sc.y / uScreen.y * 2., clamp(-p.z / 6000., -1., 1.), 1.);
+  vP = q; vN = aNor; vUV = aUV;
+}`;
+const FS = `
+precision highp float;
+uniform sampler2D uTex; uniform vec3 uLamp; uniform vec3 uSpot; uniform float uLampOn; uniform float uBack;
+varying vec3 vP; varying vec3 vN; varying vec2 vUV;
+void main(){
+  vec3 base = uBack > .5 ? vec3(.50, .52, .55) : texture2D(uTex, vUV).rgb;
+  vec3 N = normalize(vN);
+  vec3 L = uLamp - vP; float d = length(L); L /= d;
+  float diff = max((dot(N, L) + .55) / 1.55, 0.);
+  float spot = smoothstep(.42, .95, dot(-L, normalize(uSpot)));
+  float att = 1. / (1. + pow(d / 760., 2.));
+  float spill = exp(-pow(d / 380., 2.)) * .22;
+  float key = uLampOn * (diff * spot * att * 1.55 + spill * diff * 1.4);
+  float amb = (.55 + .12 * max(N.z, 0.) + .07 * max(-N.y, 0.)) * mix(1., .72, smoothstep(250., 1250., d));
+  vec3 col = base * (amb + key * vec3(.97, .985, 1.));
+  col = col / (1. + max(col - .9, 0.) * .6);
+  float rim = (1. - smoothstep(0., .0022, vUV.x)) + smoothstep(.9978, 1., vUV.x) + (1. - smoothstep(0., .0016, vUV.y));
+  col += rim * (.05 + .25 * key) * (1. - uBack);
+  gl_FragColor = vec4(col, 1.);
+}`;
+function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const U = {}; ['uScreen','uOrigin','uFit','uRot','uPO','uD','uPush','uShift','uTex','uLamp','uSpot','uLampOn','uBack']
+  .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const NR = 300;                                  // rows down the sheet
+const vdata = new Float32Array(NR * 2 * 8);
+const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, vdata.byteLength, gl.DYNAMIC_DRAW);
+const idx = []; for (let r = 0; r < NR - 1; r++){ const a = r*2; idx.push(a, a+1, a+2, a+1, a+3, a+2); }
+const ibo = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+[['aPos',3,0],['aNor',3,12],['aUV',2,24]].forEach(([n, sz, off]) => { const l = gl.getAttribLocation(prog, n); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, sz, gl.FLOAT, false, 32, off); });
+const glt = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, glt);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, GL2 ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+let mipDirty = true;
+function upload(y, h){
+  gl.bindTexture(gl.TEXTURE_2D, glt);
+  if (h >= TH) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+  else gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, gl.RGBA, gl.UNSIGNED_BYTE, tg.getImageData(0, y, TW, h));
+  mipDirty = true;
+}
+
+/* sheet shape for a given typing position v (page px of the baseline at the type guide) */
+function sheetShape(v){
+  const yType = railY - 76, yC = railY - 30;
+  const vC = v + (yC - yType);                    // page v that sits at the platen clamp
+  const L = Math.max(0, vC);                      // paper out of the machine
+  const ds = 3, n = Math.ceil(L / ds) + 1;
+  const Ys = new Float32Array(n + 1), Zs = new Float32Array(n + 1), Th = new Float32Array(n + 1);
+  let y = yC, z = 0; Ys[0] = y; Zs[0] = 0; Th[0] = THETA0;
+  for (let i = 1; i <= n; i++){
+    const sm = (i - .5) * ds, th = THETA0 + K_BEND * (3*L*L*sm - 3*L*sm*sm + sm*sm*sm);
+    y -= Math.cos(th) * ds; z -= Math.sin(th) * ds;
+    Ys[i] = y; Zs[i] = z; const s = i * ds; Th[i] = THETA0 + K_BEND * (3*L*L*s - 3*L*s*s + s*s*s);
+  }
+  return {vC, yC, L, ds, Ys, Zs, Th};
+}
+function sheetPoint(S, v){
+  if (v <= S.vC){
+    const f = (S.vC - v) / S.ds, i = Math.min(S.Ys.length - 2, Math.floor(f)), t = f - i;
+    const th = S.Th[i] + (S.Th[i+1] - S.Th[i]) * t;
+    return [S.Ys[i] + (S.Ys[i+1] - S.Ys[i]) * t, S.Zs[i] + (S.Zs[i+1] - S.Zs[i]) * t, -Math.sin(th), Math.cos(th)];
+  }
+  const b = Math.min((v - S.vC) / R_PLATEN, 2.3);            // wrapped round the platen
+  return [S.yC + R_PLATEN * Math.sin(b), -R_PLATEN + R_PLATEN * Math.cos(b), Math.sin(b), Math.cos(b)];
+}
+
+/* camera math identical to the CSS 3D of #tilt inside #stage */
+function project(x, y, z, fit, rxd, ryd){
+  const ox = innerWidth / 2, oy = railY, a = rxd * Math.PI / 180, b = ryd * Math.PI / 180;
+  let px = x - ox, py = y - oy, pz = z;
+  let X = px * Math.cos(b) + pz * Math.sin(b), Z = -px * Math.sin(b) + pz * Math.cos(b);
+  const Y = py * Math.cos(a) - Z * Math.sin(a); Z = py * Math.sin(a) + Z * Math.cos(a);
+  const s = PERSP / (PERSP - Z), poy = innerHeight * .35;
+  return poy + ((Y * fit + oy) - poy) * s;
+}
+
+/* ---- animation state ---- */
+const cur = {hx: 0, v: MT, fit: 1, rx: 16, ry: 0};
+const tgt = {rx: 16, ry: 0, fit: 1};
+const tweens = {};
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const easeIO = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+function tween(k, to, dur, delay = 0, ease = easeIO){
+  if (!dur){ cur[k] = to; delete tweens[k]; return; }
+  tweens[k] = {from: cur[k], to, t0: performance.now() + delay * 1000, dur: dur * 1000, ease};
+}
+let fitBase = 1;
+function fitFor(v){
+  // pull the camera back just enough to keep the top edge of the A4 sheet in view
+  const S = sheetShape(v), top = sheetPoint(S, 0);
+  let lo = .42, hi = fitBase;
+  if (project(innerWidth / 2, top[0], top[1], hi, tgt.rx, 0) >= 70) return hi;
+  for (let i = 0; i < 14; i++){ const m = (lo + hi) / 2; if (project(innerWidth / 2, top[0], top[1], m, tgt.rx, 0) >= 70) lo = m; else hi = m; }
+  return lo;
+}
+
+/* ---- public API used by the rest of the app ---- */
+function ensureLine(){ }
+function resizePaper(){ }
+function renderAll(){ texPage = -1; fresh.length = 0; }
+function cursor(){ const li = lines.length - 1; return { li, col: [...lines[li]].length }; }
+function place(mode, o = {}){
+  const {li, col} = cursor();
+  const pg = Math.floor(li / LPP);
+  let fed = false;
+  if (pg !== texPage){ texPage = pg; paintPage(); fed = true; }
+  const hx = ML + col * CW + CW / 2 - P2;
+  const v = MT + (li % LPP) * LH + LH * .72 - viewOff;
+  const D = {anim: [.085, easeOut], cr: [.42, easeIO], view: [.25, easeOut]}[mode] || [0, easeIO];
+  tween('hx', hx, o.hDur ?? D[0], o.hDelay || 0, D[1]);
+  if (fed && mode) cur.v = -120;                  // a fresh sheet rises out of the platen
+  tween('v', v, fed && mode ? 1.1 : (o.vDur ?? D[0]), o.vDelay || 0, D[1]);
+  tgt.fit = fitFor(v);
+  updateStats();
+}
+function layout(){
+  railY = Math.round(innerHeight * 0.72);
+  const cx = innerWidth / 2, P = P2;
+  const put = (id, l, t, w, h) => { const e = $(id); e.style.left = l + 'px'; e.style.top = t + 'px'; if (w != null) e.style.width = w + 'px'; if (h != null) e.style.height = h + 'px'; };
+  anchor.style.display = 'none'; $('curl').style.display = 'none';
+  put('rail', cx - P - 60, railY - 6, 2 * P + 120);
+  put('rod', cx - P - 120, railY + 34, 2 * P + 240);
+  put('knobL', cx - P - 60 - 46, railY - 35);
+  put('knobR', cx + P + 60 - 2, railY - 35);
+  put('guideL', cx - P - 5, railY - 16); put('guideR', cx + P - 5, railY - 16);
+  put('podL', cx - P - 106 - 200, railY - 92, 220, 520);
+  put('podR', cx + P + 106 - 20, railY - 92, 220, 520);
+  put('lever', cx - P - 106 - 100 - 150 + 20, railY - 110);
+  put('deck', cx - P - 140, railY + 40, 2 * P + 280, 420);
+  put('railShade', cx - P - 60, railY - 110, 2 * P + 120);
+  $('underShade').style.display = 'none';
+  head.style.top = (railY - 23) + 'px';
+  $('headShadow').style.top = (railY + 32) + 'px';
+  bar.style.top = (railY - 64) + 'px';
+  $('slit').style.top = '-2px'; $('cap').style.top = '4px'; $('stem').style.top = '8px';
+  head.style.transition = bar.style.transition = $('headShadow').style.transition = 'none';
+  tilt.style.transformOrigin = `50% ${railY}px`;
+  fitBase = Math.min(1.12, (innerWidth - 150) / ((PAGE_W + 260) * 1.08));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  glc.width = Math.round(innerWidth * dpr); glc.height = Math.round(innerHeight * dpr);
+  place();
+  cur.fit = tgt.fit;
+  if (window.__K && window.__K.onLayout) window.__K.onLayout(window.__K.metrics());
+}
+let mx = 0, my = 0;
+function applyTilt(dx, dy){
+  tgt.rx = settings.tiltOn ? 16 - dy * 4 : 0;
+  tgt.ry = settings.tiltOn ? dx * 5 : 0;
+}
+
+/* ---- per-frame: tweens, CSS machine transforms, paper redraws, WebGL draw ---- */
+let lastCss = '';
+function frame(now){
+  for (const k in tweens){
+    const t = tweens[k], u = (now - t.t0) / t.dur;
+    if (u < 0) continue;
+    if (u >= 1){ cur[k] = t.to; delete tweens[k]; } else cur[k] = t.from + (t.to - t.from) * t.ease(u);
+  }
+  cur.rx += (tgt.rx - cur.rx) * .1; cur.ry += (tgt.ry - cur.ry) * .1; cur.fit += (tgt.fit - cur.fit) * .06;
+  const css = `${cur.fit.toFixed(4)}|${cur.rx.toFixed(3)}|${cur.ry.toFixed(3)}|${cur.hx.toFixed(2)}`;
+  if (css !== lastCss){
+    lastCss = css;
+    tilt.style.transform = `scale(${cur.fit.toFixed(4)}) rotateX(${cur.rx.toFixed(3)}deg) rotateY(${cur.ry.toFixed(3)}deg)`;
+    head.style.transform = `translateX(${cur.hx}px) translateZ(46px)`;
+    bar.style.transform = `translateX(${cur.hx}px) translateZ(44px)`;
+    $('headShadow').style.transform = `translateX(${cur.hx}px) translateZ(31px)`;
+  }
+  // strike animation + edits
+  for (const f of fresh) dirtyLines.add(f.li);
+  for (let i = fresh.length - 1; i >= 0; i--) if (now - fresh[i].t0 > 150) fresh.splice(i, 1);
+  for (const li of dirtyLines) if (Math.floor(li / LPP) === texPage) paintLine(li % LPP);
+  dirtyLines.clear();
+  drawGL();
+  requestAnimationFrame(frame);
+}
+function drawGL(){
+  const W = innerWidth, H = innerHeight;
+  gl.viewport(0, 0, glc.width, glc.height);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  if (GL2 && mipDirty){ gl.bindTexture(gl.TEXTURE_2D, glt); gl.generateMipmap(gl.TEXTURE_2D); mipDirty = false; }
+  // geometry
+  const S = sheetShape(cur.v), cx = W / 2;
+  for (let r = 0; r < NR; r++){
+    const v = r / (NR - 1) * PAGE_H, [y, z, ny, nz] = sheetPoint(S, v), o = r * 16;
+    vdata.set([cx - P2, y, z, 0, ny, nz, 0, v / PAGE_H], o);
+    vdata.set([cx + P2, y, z, 0, ny, nz, 1, v / PAGE_H], o + 8);
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferSubData(gl.ARRAY_BUFFER, 0, vdata);
+  gl.uniform2f(U.uScreen, W, H); gl.uniform2f(U.uOrigin, cx, railY);
+  gl.uniform1f(U.uFit, cur.fit); gl.uniform2f(U.uRot, cur.rx * Math.PI / 180, cur.ry * Math.PI / 180);
+  gl.uniform2f(U.uPO, W / 2, H * .35); gl.uniform1f(U.uD, PERSP);
+  gl.uniform3f(U.uLamp, cx + cur.hx, railY - 70, 12);
+  gl.uniform3f(U.uSpot, 0, -1, -.06);
+  gl.uniform1f(U.uLampOn, settings.lamp ? 1 : 0);
+  gl.uniform1i(U.uTex, 0);
+  // backing sheet (behind, offset right) then the typed sheet
+  gl.uniform1f(U.uBack, 1); gl.uniform1f(U.uPush, -4); gl.uniform1f(U.uShift, 11);
+  gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(U.uBack, 0); gl.uniform1f(U.uPush, 0); gl.uniform1f(U.uShift, 0);
+  gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+}
+requestAnimationFrame(frame);
+
+/* ---------- Stats ---------- */
+function updateStats(){
+  const all = lines.join('\n');
+  const w = (all.match(/\S+/g) || []).length;
+  const n = w % 10, n2 = w % 100;
+  const word = (n===1 && n2!==11) ? 'слово' : (n>=2 && n<=4 && (n2<10||n2>=20)) ? 'слова' : 'слов';
+  $('wc').textContent = `${w} ${word}`;
+  const p = Math.floor((lines.length - 1) / LPP);
+  $('lc').textContent = `лист A4 ${p + 1} · строка ${(lines.length - 1) % LPP + 1}/${LPP}`;
+}
+let saveT;
+function save(){ clearTimeout(saveT); saveT = setTimeout(() => { store.set('text', lines.join('\n')); store.set('attrs', attrs); store.set('wrap', wrapped); store.set('settings', settings); }, 250); }
+
+/* ---------- Audio ---------- */
+const A = { ctx:null };
+function initAudio(){
+  if (A.ctx) { if (A.ctx.state === 'suspended') A.ctx.resume(); return; }
+  const ctx = A.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = .003; comp.release.value = .2;
+  comp.connect(ctx.destination);
+  A.master = ctx.createGain(); A.master.gain.value = .85; A.master.connect(comp);
+  // small wooden room reverb
+  const rv = ctx.createConvolver(); const len = ctx.sampleRate * 1.1;
+  const ib = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch=0; ch<2; ch++){ const d = ib.getChannelData(ch); for (let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 3.2) * (i < 200 ? i/200 : 1); }
+  rv.buffer = ib; const wet = ctx.createGain(); wet.gain.value = .16;
+  A.master.connect(rv); rv.connect(wet); wet.connect(comp);
+  A.fx = A.master;
+  // noise
+  const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const nd = nb.getChannelData(0);
+  for (let i=0;i<nd.length;i++) nd[i] = Math.random()*2-1;
+  A.noise = nb;
+  const bb = ctx.createBuffer(2, ctx.sampleRate * 6, ctx.sampleRate);
+  for (let ch=0; ch<2; ch++){ const d = bb.getChannelData(ch); let last = 0; for (let i=0;i<d.length;i++){ last = (last + .02*(Math.random()*2-1)) / 1.02; d[i] = last*3.5; } }
+  A.brown = bb;
+  if (settings.amb) startAmb();
+}
+function pan(v){ const p = A.ctx.createStereoPanner ? A.ctx.createStereoPanner() : null; if (p){ p.pan.value = v; p.connect(A.fx); return p;} return A.fx; }
+function nz(t, o){
+  const c = A.ctx, s = c.createBufferSource(); s.buffer = A.noise;
+  const f = c.createBiquadFilter(); f.type = o.type || 'bandpass'; f.frequency.value = o.f; f.Q.value = o.q || 1;
+  if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, t + o.dur);
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(o.g, t + (o.a || .0015));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+  s.connect(f); f.connect(g); g.connect(o.out || A.fx);
+  s.start(t, Math.random() * 1.5); s.stop(t + o.dur + .05);
+}
+function tn(t, o){
+  const c = A.ctx, s = c.createOscillator(); s.type = o.type || 'sine';
+  s.frequency.setValueAtTime(o.f, t); if (o.f2) s.frequency.exponentialRampToValueAtTime(o.f2, t + o.dur * .7);
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(o.g, t + (o.a || .002));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+  s.connect(g); g.connect(o.out || A.fx); s.start(t); s.stop(t + o.dur + .05);
+}
+const R = () => Math.random();
+function sKey(col){
+  if (!settings.sound || !A.ctx) return;
+  const S = MACHINES[mi].snd, t = A.ctx.currentTime + .004, v = .75 + R() * .35;
+  const out = pan(((col / COLS) - .5) * .5);
+  if (S.electric){ // IBM Selectric: soft thock, the golf ball spinning and a motor whir
+    nz(t, {f: 1900 + R()*600, q: 1.2, dur: .02, g: .5*v, out});
+    nz(t+.001, {type:'lowpass', f: 950, q: .8, dur: .065, g: .6*v, out});
+    tn(t, {f: (110 + R()*20)*S.low, f2: 62, dur: .09, g: .5*v, out});
+    tn(t, {f: 430, f2: 210, dur: .05, type:'triangle', g: .06*v, out});
+    nz(t+.004, {type:'bandpass', f: 2600, f2: 900, q: 2, dur: .05, g: .13, out});
+    nz(t+.05, {f: 3200, q: 5, dur: .01, g: .08*v, out});
+    return;
+  }
+  nz(t, {f: (2800 + R()*1600)*S.hi, q: 1.4, dur: .028, g: .9*v*S.slug, out});            // type slug hits paper
+  nz(t+.001, {f: (1000 + R()*350)*S.body, q: 2.8, dur: .075, g: .7*v*S.clack, out});     // body clack
+  tn(t, {f: (165 + R()*35)*S.low, f2: 52*S.low, dur: .1, g: .55*v*S.thump, out});        // platen thump
+  tn(t+.001, {f: 3300*S.hi + R()*400, dur: .09, g: .022*v*S.ring, type:'triangle', out}); // metallic ring
+  nz(t+.028, {f: 5200, q: 5, dur: .012, g: .16*v, out});                                  // escapement tick
+  nz(t+.075 + R()*.035, {f: 2300, q: 2, dur: .022, g: .22*v, out});                       // key return
+  if (S.rattle) nz(t+.03 + R()*.03, {f: 6500, q: 8, dur: .02, g: .1*v, out});             // loose linkage
+}
+function sSpace(){
+  if (!settings.sound || !A.ctx) return;
+  const S = MACHINES[mi].snd, t = A.ctx.currentTime + .004, v = .8 + R()*.3;
+  tn(t, {f: 120*S.low, f2: 48*S.low, dur: .12, g: .5*v*S.thump});
+  nz(t, {f: 700*S.body, q: 1.5, dur: .09, g: .5*v*S.clack});
+  nz(t+.02, {f: 4800, q: 5, dur: .014, g: .2*v});
+  nz(t+.09, {f: 1800, q: 2, dur: .03, g: .2*v});
+}
+function sBack(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {f: 1500, q: 3, dur: .05, g: .45});
+  nz(t+.035, {f: 3800, q: 6, dur: .015, g: .3});
+  tn(t, {f: 90, f2: 50, dur: .07, g: .3});
+}
+/* Carriage return, built like a real machine:
+   lever grab → line-space ratchet (2 notches) → carriage rolls back with the escapement
+   pawl buzzing over the rack → hard stop on the margin with a ringing frame */
+function sReturn(fromCol = COLS){
+  if (!settings.sound || !A.ctx) return;
+  const c = A.ctx, t = c.currentTime + .004;
+  const frac = Math.max(.12, Math.min(1, fromCol / COLS));
+  const startPan = (frac - .5) * .9, S = MACHINES[mi].snd;
+  // 1. lever grabbed + pushed
+  nz(t, {f: 1300, q: 2.5, dur: .045, g: .55, out: pan(-.45)});
+  tn(t, {f: 240, f2: 110, dur: .06, g: .3, out: pan(-.45)});
+  nz(t + .012, {f: 6200, q: 6, dur: .01, g: .2, out: pan(-.45)});
+  // 2. line-space ratchet: two crisp notches with a little metallic tick each
+  [.035, .085].forEach((d, i) => {
+    const o = pan(-.35);
+    nz(t + d, {f: 3100 + i*250, q: 7, dur: .016, g: .55, out: o});
+    nz(t + d + .004, {f: 1500, q: 3, dur: .03, g: .3, out: o});
+    tn(t + d, {f: 2600 + i*180, dur: .05, g: .03, type: 'triangle', out: o});
+    tn(t + d, {f: 150, f2: 75, dur: .07, g: .25, out: o});
+  });
+  // 3. carriage rolls back: escapement buzz that speeds up then slows down, panned right → left
+  const t1 = t + .11, slide = .38 * (.45 + .55 * frac), t2 = t1 + slide;
+  const ticks = Math.round(18 + 42 * frac);
+  for (let i = 0; i < ticks; i++){
+    const u = i / ticks, e = u < .5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2) / 2;
+    const ti = t1 + slide * e;
+    const p = startPan + (-.5 - startPan) * e;
+    if (!(i % 3)) { const o = pan(p); nz(ti, {f: 4300 + R()*1800, q: 9, dur: .007, g: .1 + R()*.08, out: o}); }
+    else nz(ti, {f: 4300 + R()*1800, q: 9, dur: .007, g: .08 + R()*.08});
+  }
+  nz(t1, {type:'lowpass', f: 320, q: .7, dur: slide + .02, g: .32 * S.ret, a: .05});              // rolling rumble
+  nz(t1, {type:'bandpass', f: 1100, f2: 1700, q: .7, dur: slide, g: .09 * S.ret, a: .08});       // rack hiss
+  if (S.electric) tn(t1, {f: 220, f2: 760, dur: slide, g: .07, type: 'sawtooth'});               // motor whir
+  if (S.rattle) for (let i = 0; i < 10; i++) nz(t1 + R() * slide, {f: 6200, q: 8, dur: .02, g: .12}); // loose Soviet linkage
+  // 4. slam into the margin stop + frame ring + rebound
+  const so = pan(-.55);
+  nz(t2, {f: 1700, q: 1.8, dur: .07, g: .95 * S.ret, out: so});
+  nz(t2, {f: 5200, q: 3, dur: .025, g: .35 * S.ring, out: so});
+  tn(t2, {f: 125 * S.low, f2: 46 * S.low, dur: .22, g: 1 * S.thump, out: so});
+  tn(t2, {f: 1830 * S.hi, dur: .45 * S.bellD, g: .05 * S.ring, a: .001, out: so});
+  tn(t2, {f: 2870 * S.hi, dur: .3, g: .025 * S.ring, a: .001, out: so});
+  tn(t2, {f: 4410 * S.hi, dur: .18, g: .012 * S.ring, a: .001, out: so});
+  nz(t2 + .055, {f: 2600, q: 4, dur: .02, g: .22, out: so});
+  tn(t2 + .055, {f: 170, f2: 90, dur: .05, g: .2, out: so});
+  return t2 - c.currentTime;
+}
+function sBell(){
+  if (!settings.sound || !A.ctx) return;
+  const S = MACHINES[mi].snd, t = A.ctx.currentTime + .01, f = S.bellF;
+  [[1,.22,2.2],[2.76,.08,1.2],[5.4,.035,.7],[8.93,.015,.4]].forEach(([m,g,d]) => tn(t, {f: f*m, dur: d*S.bellD, g, a: .001}));
+  nz(t, {f: 6000, q: 3, dur: .02, g: .15});
+}
+/* switching the machine: a heavy ka-chunk, then the new machine's own bell */
+function sMachine(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {f: 900, q: 2, dur: .05, g: .55}); tn(t, {f: 150, f2: 60, dur: .16, g: .75});
+  nz(t + .11, {f: 2600, q: 4, dur: .03, g: .35}); tn(t + .11, {f: 1900, dur: .35, g: .04, a: .001});
+  setTimeout(sBell, 280);
+}
+/* ribbon colour lever */
+function sRibbon(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {f: 1200, q: 3, dur: .04, g: .6}); tn(t, {f: 200, f2: 90, dur: .08, g: .5});
+  nz(t + .06, {f: 3000, q: 6, dur: .015, g: .4}); tn(t + .06, {f: 140, f2: 70, dur: .06, g: .35});
+}
+/* fitting a new ribbon: crank, ratchet, seat the spool */
+function sSpool(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {type:'bandpass', f: 700, f2: 1600, q: .8, dur: .65, g: .25, a: .1});
+  for (let i = 0; i < 14; i++) nz(t + i * .045, {f: 3000 + R()*800, q: 8, dur: .012, g: .3});
+  tn(t + .66, {f: 130, f2: 60, dur: .12, g: .6}); nz(t + .66, {f: 1500, q: 2, dur: .05, g: .5});
+}
+/* Backspace in "pure" mode: the typebar strikes an x over the old letter */
+function sStrike(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {f: 2200, q: 1.6, dur: .03, g: .7}); nz(t + .001, {f: 900, q: 2.5, dur: .06, g: .5});
+  tn(t, {f: 140, f2: 55, dur: .08, g: .45}); nz(t + .03, {f: 5000, q: 5, dur: .01, g: .14});
+}
+function sFeed(){
+  if (!settings.sound || !A.ctx) return;
+  const t = A.ctx.currentTime + .004;
+  nz(t, {type:'bandpass', f: 900, f2: 2600, q: .7, dur: .5, g: .35, a: .08});
+  for (let i=0;i<16;i++) nz(t + .05 + i*.03, {f: 3400 + R()*600, q: 7, dur: .01, g: .22});
+  tn(t + .55, {f: 100, f2: 45, dur: .15, g: .5});
+}
+/* ambience: room tone + soft rain + distant drops */
+function startAmb(){
+  if (!A.ctx || A.amb) return;
+  const c = A.ctx, g = c.createGain(); g.gain.value = 0; g.connect(A.master);
+  g.gain.linearRampToValueAtTime(1, c.currentTime + 2.5);
+  const room = c.createBufferSource(); room.buffer = A.brown; room.loop = true;
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500;
+  const rg = c.createGain(); rg.gain.value = .12; room.connect(lp); lp.connect(rg); rg.connect(g); room.start();
+  const rain = c.createBufferSource(); rain.buffer = A.noise; rain.loop = true;
+  const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+  const lp2 = c.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 5200;
+  const rgn = c.createGain(); rgn.gain.value = .045;
+  const lfo = c.createOscillator(); lfo.frequency.value = .07; const lg = c.createGain(); lg.gain.value = .015; lfo.connect(lg); lg.connect(rgn.gain); lfo.start();
+  rain.connect(hp); hp.connect(lp2); lp2.connect(rgn); rgn.connect(g); rain.start();
+  const drops = setInterval(() => {
+    const n = 2 + (R()*5|0);
+    for (let i=0;i<n;i++){ const t = c.currentTime + R()*.4; nz(t, {f: 2500 + R()*4000, q: 6, dur: .02 + R()*.03, g: .03 + R()*.05, out: g}); }
+  }, 380);
+  A.amb = {g, room, rain, lfo, drops};
+}
+function stopAmb(){
+  if (!A.amb) return; const a = A.amb; A.amb = null; const c = A.ctx;
+  a.g.gain.cancelScheduledValues(c.currentTime); a.g.gain.setValueAtTime(a.g.gain.value, c.currentTime);
+  a.g.gain.linearRampToValueAtTime(0, c.currentTime + 1.2);
+  clearInterval(a.drops);
+  setTimeout(() => { try{ a.room.stop(); a.rain.stop(); a.lfo.stop(); }catch(e){} }, 1400);
+}
+
+/* ---------- Typing ---------- */
+let bellRung = false;
+function retrig(el, c){ el.classList.remove(c); void el.offsetWidth; el.classList.add(c); }
+function hitBar(){ retrig(bar, 'hit'); retrig(head, 'bump'); if (settings.lamp) retrig($('ledL'), 'flick'); }
+let inkWarned = false, liveDi = null;
+function syncInk(){ const b = $('bInk'); b.style.setProperty('--ink', (settings.ink * 100).toFixed(1) + '%'); b.classList.toggle('low', settings.ink < .22); }
+function wearInk(){
+  settings.ink = Math.max(0, settings.ink - .00018 * MACHINES[mi].wear);
+  if (settings.ink < .22 && !inkWarned) { inkWarned = true; toast('Лента заканчивается — замените её (Ctrl+E)'); }
+  syncInk();
+}
+function typeChar(ch, raw){
+  if (settings.latin && !raw) {
+    const L0 = lines.length - 1, cl = lines[L0], pv = cl ? [...cl].pop() : '', isUp = ch !== ch.toLowerCase();
+    // ALL-CAPS: a capital Ш typed first came out as 'Sh'; if the next letter is capital too, promote it to 'SH'
+    if (isUp && liveDi && liveDi.li === L0 && liveDi.end === [...cl].length) {
+      const arr = [...cl]; for (let q = arr.length - liveDi.tail; q < arr.length; q++) arr[q] = arr[q].toUpperCase();
+      lines[L0] = arr.join(''); markDirty(L0);
+    }
+    liveDi = null;
+    const out = [...toLatin(ch, pv)];
+    for (const c2 of out) typeChar(c2, true);
+    const L1 = lines.length - 1;
+    if (out.length > 1 && out[0] !== out[0].toLowerCase() && out[1] === out[1].toLowerCase()) liveDi = {li: L1, end: [...lines[L1]].length, tail: out.length - 1};
+    return;
+  }
+  const {li, col} = cursor();
+  if (col >= COLS) { carriageReturn(true); return typeChar(ch, true); }
+  lines[li] += ch;
+  attrs[li].push(encA(mi, settings.ribbon, settings.ink, 0));
+  if (ch !== ' ') { wearInk(); fresh.push({li, ci: col, t0: performance.now()}); sKey(col); hitBar(); }
+  else sSpace();
+  if (col + 1 === COLS - 8 && !bellRung) { bellRung = true; setTimeout(sBell, 40); }
+  viewOff = 0; place('anim'); save();
+}
+function carriageReturn(soft){
+  const fromCol = cursor().col;
+  lines.push(''); attrs.push([]); wrapped.push(!!soft); bellRung = false;
+  const newSheet = (lines.length - 1) % LPP === 0;
+  if (newSheet) { sFeed(); toast(`Заправлен лист A4 № ${Math.floor((lines.length - 1) / LPP) + 1}`); }
+  else sReturn(fromCol);
+  // lever swings
+  const lv = $('lever'); lv.classList.add('pull'); setTimeout(() => lv.classList.remove('pull'), 140);
+  viewOff = 0;
+  // timing that matches the sound: paper feeds on the ratchet, carriage rolls back after it
+  const frac = Math.max(.12, Math.min(1, fromCol / COLS)), slide = .38 * (.45 + .55 * frac);
+  place('cr', {vDur: .16, vDelay: .03, hDur: slide, hDelay: .11});
+  save();
+}
+function backspace(){
+  const {li, col} = cursor();
+  if (settings.pure) {
+    // pure mode: nothing can be erased — the previous letter gets an x struck over it
+    const chars = [...lines[li]], a = attrs[li];
+    let i = chars.length - 1;
+    while (i >= 0 && (chars[i] === ' ' || ((a[i] >> 4) & 1))) i--;
+    if (i < 0) { sBack(); toast('Чистый режим: стирать нельзя'); return; }
+    a[i] |= 16; wearInk(); markDirty(li); sStrike(); hitBar(); save(); return;
+  }
+  if (col === 0) {
+    if (li === 0) return;
+    lines.pop(); attrs.pop(); wrapped.pop();
+    sBack(); place('cr'); save(); return;
+  }
+  const arr = [...lines[li]]; const ch = arr.pop(); lines[li] = arr.join(''); attrs[li].pop();
+  if (ch !== ' ') markDirty(li);
+  if (col - 1 < COLS - 8) bellRung = false;
+  sBack(); viewOff = 0; place('anim'); save();
+}
+function newSheet(){
+  if (lines.join('').trim() && !confirm('Начать новый лист? Текущий текст будет убран (сохраните его, если нужен).')) return;
+  lines = ['']; attrs = [[]]; wrapped = [false]; renderAll(); sFeed(); viewOff = 0; place('cr'); save(); bellRung = false;
+  toast('Новый лист');
+}
+
+let idleT;
+function typingMode(){ document.body.classList.add('typing'); }
+addEventListener('mousemove', e => {
+  document.body.classList.remove('typing');
+  mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5;
+  applyTilt(mx, my);
+});
+
+addEventListener('keydown', e => {
+  if (!$('intro').classList.contains('hide')) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(); } return; }
+  initAudio();
+  const k = e.key, mod = e.ctrlKey || e.metaKey;
+  if (mod && !e.altKey) {
+    const code = e.code;
+    if (code === 'KeyN') { e.preventDefault(); newSheet(); }
+    else if (code === 'KeyS') { e.preventDefault(); download(); }
+    else if (code === 'KeyM') { e.preventDefault(); toggle('sound'); }
+    else if (code === 'KeyR') { e.preventDefault(); toggle('amb'); }
+    else if (code === 'KeyL') { e.preventDefault(); toggle('lamp'); }
+    else if (code === 'KeyT') { e.preventDefault(); toggle('tiltOn'); }
+    else if (code === 'KeyC') { e.preventDefault(); copyAll(); }
+    else if (code === 'KeyB') { e.preventDefault(); toggleRibbon(); }
+    else if (code === 'KeyE') { e.preventDefault(); renewRibbon(); }
+    else if (code === 'KeyG') { e.preventDefault(); togglePure(); }
+    else if (code === 'KeyJ') { e.preventDefault(); cycleMachine(); }
+    else if (code === 'KeyH') { e.preventDefault(); toggleLatin(); }
+    else if (code === 'KeyF') { e.preventDefault(); toggleBold(); }
+    else if (code === 'KeyO') { e.preventDefault(); window.dispatchEvent(new Event('karetka:files')); }
+    else if (e.key === 'Enter') { e.preventDefault(); window.dispatchEvent(new Event('karetka:run')); }
+    return;
+  }
+  if (k === 'F11') return;
+  if (k === 'Escape') { if (window.__K && window.__K.onEsc && window.__K.onEsc()) return; viewOff = 0; place('view'); return; }
+  if (k === 'Enter') { e.preventDefault(); carriageReturn(); typingMode(); return; }
+  if (k === 'Backspace') { e.preventDefault(); backspace(); typingMode(); return; }
+  if (k === 'Tab') { e.preventDefault(); for (let i=0;i<4;i++) typeChar(' '); return; }
+});
+/* Printable characters arrive through a hidden textarea (works with any layout / IME) */
+const sink = $('sink');
+let composing = false;
+function flushSink(){
+  const v = sink.value; sink.value = '';
+  if (!v || !$('intro').classList.contains('hide')) return;
+  initAudio();
+  for (const ch of v) { if (ch === '\n') carriageReturn(); else typeChar(ch === '\t' ? ' ' : ch); }
+  typingMode();
+}
+sink.addEventListener('compositionstart', () => composing = true);
+sink.addEventListener('compositionend', () => { composing = false; flushSink(); });
+sink.addEventListener('input', () => { if (!composing) flushSink(); });
+sink.addEventListener('blur', () => setTimeout(() => { const a = document.activeElement; if (!(a && a.closest && a.closest('#fx'))) sink.focus(); }, 0));   // the file editor keeps its own focus
+addEventListener('mousedown', () => setTimeout(() => sink.focus(), 0));
+addEventListener('paste', e => {
+  const t = (e.clipboardData || window.clipboardData).getData('text'); if (!t) return;
+  e.preventDefault(); initAudio();
+  const chars = [...t.replace(/\r/g,'')].slice(0, 4000);
+  let i = 0; const step = () => { if (i >= chars.length) return; const ch = chars[i++]; ch === '\n' ? carriageReturn() : typeChar(ch === '\t' ? ' ' : ch); setTimeout(step, ch === '\n' ? 260 : 28 + R()*30); };
+  step();
+});
+addEventListener('wheel', e => {
+  if (e.target && e.target.closest && e.target.closest('#printout')) return;      // wheel over the printed sheet scrolls the printout, not the paper
+  const maxUp = MT + ((lines.length - 1) % LPP) * LH + 160, maxDown = PAGE_H * .35;
+  viewOff = Math.max(-maxDown, Math.min(maxUp, viewOff - e.deltaY * .6));
+  place('view');
+}, {passive:true});
+addEventListener('resize', layout);
+
+/* ---------- UI ---------- */
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 1600); }
+function syncUI(){
+  $('bSound').classList.toggle('off', !settings.sound);
+  $('bAmb').classList.toggle('off', !settings.amb);
+  $('bLamp').classList.toggle('off', !settings.lamp);
+  $('bView').classList.toggle('off', !settings.tiltOn);
+  $('ledS').classList.toggle('on', settings.sound);
+  $('ledL').classList.toggle('on', settings.lamp);
+  $('ledA').classList.toggle('on', settings.amb);
+  document.body.classList.toggle('lampOff', !settings.lamp);
+  $('bPure').classList.toggle('off', !settings.pure);
+  $('bLat').classList.toggle('off', !settings.latin);
+  $('bBold').classList.toggle('off', !settings.bold);
+  $('bRib').classList.toggle('red', !!settings.ribbon);
+  $('bRib').dataset.tip = `Лента: ${settings.ribbon ? 'красная' : 'чёрная'} (сменить)  Ctrl+B`;
+}
+const names = {sound:'Звук клавиш', amb:'Атмосфера', lamp:'Лампа', tiltOn:'3D-наклон'};
+function toggle(k){
+  settings[k] = !settings[k]; store.set('settings', settings); syncUI();
+  if (k === 'amb') settings.amb ? startAmb() : stopAmb();
+  if (k === 'tiltOn') applyTilt(mx, my);
+  if (k === 'lamp' && A.ctx && settings.sound) { const t = A.ctx.currentTime; nz(t, {f: 3000, q: 4, dur: .02, g: .5}); tn(t, {f: 180, f2: 80, dur: .05, g: .3}); }
+  toast(`${names[k]}: ${settings[k] ? 'вкл' : 'выкл'}`);
+}
+/* ---------- Machines, ribbon, pure mode, Kazakh Latin ---------- */
+function applyMachine(){
+  const M = MACHINES[mi], r = document.documentElement.style;
+  r.setProperty('--mh', M.h); r.setProperty('--ms', M.s);
+  $('podName').textContent = M.name;
+  $('bMach').dataset.tip = `Машинка: ${M.name}  Ctrl+J`;
+}
+function cycleMachine(){
+  mi = (mi + 1) % MACHINES.length; settings.machine = MACHINES[mi].id; store.set('settings', settings);
+  applyMachine(); sMachine(); toast(`Машинка: ${MACHINES[mi].name}`);
+}
+function toggleRibbon(){
+  settings.ribbon = settings.ribbon ? 0 : 1; store.set('settings', settings); syncUI(); sRibbon();
+  toast(`Лента: ${settings.ribbon ? 'красная' : 'чёрная'}`);
+}
+function renewRibbon(){
+  settings.ink = 1; inkWarned = false; store.set('settings', settings); syncInk(); sSpool(); toast('Новая лента заправлена');
+}
+function togglePure(){
+  settings.pure = !settings.pure; store.set('settings', settings); syncUI();
+  if (A.ctx && settings.sound) { const t = A.ctx.currentTime; nz(t, {f: 2800, q: 4, dur: .02, g: .5}); tn(t, {f: 200, f2: 90, dur: .06, g: .35}); }
+  toast(settings.pure ? 'Чистый режим: Backspace зачёркивает, а не стирает' : 'Чистый режим выкл');
+}
+function toggleBold(){
+  settings.bold = !settings.bold; store.set('settings', settings); syncUI();
+  renderAll(); place('view');
+  if (A.ctx && settings.sound) { const t = A.ctx.currentTime; nz(t, {f: 2400, q: 4, dur: .02, g: .45}); tn(t, {f: 190, f2: 85, dur: .06, g: .3}); }
+  toast(settings.bold ? 'Шрифт: қалың (Bold)' : 'Шрифт: жіңішке (Regular)');
+}
+let latinBackup = null;
+function latinizeAll(){
+  const outL = [], outA = [];
+  lines.forEach((ln, li) => {
+    const src = [...ln]; let cur = [], curA = [];
+    const flush = () => { outL.push(cur.join('')); outA.push(curA); cur = []; curA = []; };
+    src.forEach((ch, ci) => {
+      const a = (attrs[li] && attrs[li][ci]) || 0;
+      for (const c2 of toLatin(ch, src[ci - 1], src[ci + 1])) {
+        if (cur.length >= COLS) {                     // digraphs make lines longer — wrap at the last space
+          const sp = cur.lastIndexOf(' ');
+          if (sp > 0) { const rest = cur.slice(sp + 1), restA = curA.slice(sp + 1); cur = cur.slice(0, sp); curA = curA.slice(0, sp); flush(); cur = rest; curA = restA; }
+          else flush();
+        }
+        cur.push(c2); curA.push(a);
+      }
+    });
+    flush();
+  });
+  return {lines: outL, attrs: outA};
+}
+function toggleLatin(){
+  if (!settings.latin) {
+    latinBackup = {lines: lines.slice(), attrs: attrs.map(a => a.slice())};
+    const r = latinizeAll(); lines = r.lines; attrs = r.attrs; wrapped = lines.map(() => false); latinBackup.after = lines.join('\n');
+    settings.latin = true; renderAll(); viewOff = 0; place('cr'); save();
+    toast('Қазақ латыны (2021): текст переведён, печать идёт латиницей');
+  } else {
+    settings.latin = false;
+    if (latinBackup && latinBackup.after === lines.join('\n')) {
+      lines = latinBackup.lines; attrs = latinBackup.attrs; wrapped = lines.map(() => false); renderAll(); viewOff = 0; place('cr'); save();
+      toast('Латиница выкл — кириллица возвращена');
+    } else toast('Латиница выкл — новый текст печатается кириллицей');
+  }
+  store.set('settings', settings); syncUI();
+}
+/* ---------- Word (.docx) export: A4, Courier New 12pt, 1" margins, 1.5 spacing, one typewriter sheet per page ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n=0;n<256;n++){ let c=n; for (let k=0;k<8;k++) c = c&1 ? 0xEDB88320 ^ (c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i=0;i<u8.length;i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files){ // stored (no compression) zip
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const u16 = v => [v & 255, (v >> 8) & 255], u32 = v => [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255];
+  for (const f of files){
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const common = [...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)];
+    const local = new Uint8Array([...u32(0x04034b50), ...common]);
+    parts.push(local, name, data);
+    central.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...common, ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), name);
+    off += local.length + name.length + data.length;
+  }
+  const cdSize = central.reduce((s, p) => s + p.length, 0);
+  const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
+  return new Blob([...parts, ...central, end], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+}
+function buildDocx(){
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const paras = lines.map((ln, i) => {
+    const brk = i > 0 && i % LPP === 0 ? '<w:pageBreakBefore/>' : '';
+    const chars = [...ln], a = attrs[i] || [];
+    // red ribbon → red text, worn ribbon → greys, struck-out letters → strikethrough
+    const prop = j => { const d = decA(a[j] || 0); const col = d.c ? 'B3262A' : (d.k < .55 ? '6B6B6B' : d.k < .8 ? '3A3A3A' : ''); return (settings.bold ? '<w:b/>' : '') + (d.s ? '<w:strike/>' : '') + (col ? `<w:color w:val="${col}"/>` : ''); };
+    let runs = '', j = 0;
+    while (j < chars.length) {
+      const p = prop(j); let e = j, s = '';
+      while (e < chars.length && prop(e) === p) { s += chars[e]; e++; }
+      runs += `<w:r>${p ? `<w:rPr>${p}</w:rPr>` : ''}<w:t xml:space="preserve">${esc(s)}</w:t></w:r>`;
+      j = e;
+    }
+    return `<w:p><w:pPr>${brk}</w:pPr>${runs}</w:p>`;
+  }).join('');
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${paras}` +
+    `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}><w:docDefaults>` +
+    `<w:rPrDefault><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New" w:eastAsia="Courier New"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="ru-RU"/></w:rPr></w:rPrDefault>` +
+    `<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="360" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>` +
+    `<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`;
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+    `<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+  const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  return makeZip([
+    {name:'[Content_Types].xml', data: ct}, {name:'_rels/.rels', data: rels},
+    {name:'word/document.xml', data: doc}, {name:'word/_rels/document.xml.rels', data: docRels}, {name:'word/styles.xml', data: styles}
+  ]);
+}
+window.__buildDocx = buildDocx;
+function download(){
+  const blob = buildDocx();
+  const a = document.createElement('a'); const d = new Date();
+  const first = (lines.find(l => l.trim()) || 'karetka').trim().replace(/[\\/:*?"<>|]+/g, '').slice(0, 40);
+  a.download = `${first} ${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.docx`;
+  a.href = URL.createObjectURL(blob); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Сохранено в Word (.docx) — папка «Загрузки»');
+}
+function copyAll(){ navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Текст скопирован'), () => toast('Не удалось скопировать')); }
+/* chunky mechanical key sound for the 3D buttons */
+function sUi(down){
+  if (!A.ctx) return;
+  const t = A.ctx.currentTime + .003;
+  if (down){ nz(t, {f: 2200, q: 2, dur: .03, g: .45}); tn(t, {f: 210, f2: 90, dur: .06, g: .35}); nz(t+.004, {f: 5200, q: 5, dur: .012, g: .18}); }
+  else { nz(t, {f: 3200, q: 3, dur: .02, g: .22}); tn(t, {f: 320, f2: 160, dur: .03, g: .12}); }
+}
+document.querySelectorAll(':is(#tools,#toolsL) button').forEach(b => {
+  b.addEventListener('pointerdown', () => { initAudio(); sUi(true); });
+  b.addEventListener('pointerup', () => sUi(false));
+});
+$('bNew').onclick = () => { initAudio(); newSheet(); };
+$('bSound').onclick = () => { initAudio(); toggle('sound'); };
+$('bAmb').onclick = () => { initAudio(); toggle('amb'); };
+$('bLamp').onclick = () => { initAudio(); toggle('lamp'); };
+$('bView').onclick = () => toggle('tiltOn');
+$('bCopy').onclick = copyAll;
+$('bSave').onclick = download;
+$('bFull').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+$('bMach').onclick = () => { initAudio(); cycleMachine(); };
+$('bRib').onclick = () => { initAudio(); toggleRibbon(); };
+$('bInk').onclick = () => { initAudio(); renewRibbon(); };
+$('bPure').onclick = () => { initAudio(); togglePure(); };
+$('bLat').onclick = () => { initAudio(); toggleLatin(); };
+$('bBold').onclick = () => { initAudio(); toggleBold(); };
+
+function start(){
+  initAudio(); $('intro').classList.add('hide'); sFeed(); sink.focus();
+}
+$('start').onclick = start;
+
+/* bridge for runner.js: the text on the paper is the program */
+window.__K = {A, nz, tn, pan, R, toast, settings, store, sUi, layout,
+  getCode: () => lines.map((l, i) => (i > 0 && !wrapped[i] ? '\n' : '') + l).join(''),
+  metrics: () => ({railY, cx: innerWidth / 2, P: P2, fit: cur.fit}),
+  cam: () => ({fit: cur.fit, rx: cur.rx, ry: cur.ry, railY, cx: innerWidth / 2})};
+applyMachine(); syncInk(); renderAll(); syncUI(); layout();
+})();
+</script>
+<script src="runner.js"></script>
+<script src="files.js"></script>
+</body>
+</html>

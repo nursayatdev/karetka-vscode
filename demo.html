@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Каретка — демо для TikTok</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#001a4d;font-family:"Segoe UI",system-ui,sans-serif;color:#fff;user-select:none}
+#desk{position:fixed;inset:0;cursor:none;background:#0a3fa8 url(assets/wallpaper.jpg) center/cover no-repeat}
+#cap{position:absolute;left:0;right:0;top:12px;height:56px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 24px;
+  font:900 clamp(20px,3vw,40px)/1.1 "Segoe UI",system-ui,sans-serif;color:#fff;z-index:40;pointer-events:none;
+  text-shadow:-3px -3px 0 #000,3px -3px 0 #000,-3px 3px 0 #000,3px 3px 0 #000,0 0 18px rgba(0,0,0,.7);
+  opacity:0;transform:translateY(8px) scale(.97);transition:opacity .25s,transform .25s}
+#cap.show{opacity:1;transform:none}
+
+/* desktop icons */
+#icons{position:absolute;left:8px;top:8px;bottom:48px;display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;gap:2px}
+.dicon{width:84px;padding:6px 2px 4px;text-align:center;font-size:12px;line-height:1.2;border:1px solid transparent;border-radius:2px;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8)}
+.dicon img{display:block;width:46px;height:46px;margin:0 auto 5px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+.dicon.hov{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.18)}
+.dicon.sel{background:rgba(120,180,255,.38);border-color:rgba(150,200,255,.6)}
+
+/* app window (Windows 10 look) */
+#wz{position:absolute;inset:0;pointer-events:none}
+#win{position:absolute;left:1.5vw;right:1.5vw;top:72px;bottom:48px;background:#0b0b0d;overflow:hidden;
+  box-shadow:0 30px 80px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.22);opacity:0;transform:scale(.05);
+  transition:transform .42s cubic-bezier(.2,.9,.25,1),opacity .2s}
+#win.open{opacity:1;transform:none}
+#tb{height:32px;display:flex;align-items:center;background:#1f1f23;font-size:12px}
+#tb .ti{display:flex;align-items:center;gap:8px;padding-left:10px;flex:1}
+#tb .ti img{width:16px;height:16px}
+#tb .cb{width:46px;height:32px;display:flex;align-items:center;justify-content:center}
+#tb .cb.x:hover{background:#e81123}
+#tb svg{width:10px;height:10px;stroke:#fff;fill:none;stroke-width:1}
+#fr{display:block;width:100%;height:calc(100% - 32px);border:0;background:#0b0b0d}
+#shield{position:absolute;left:0;right:0;bottom:0;top:32px;z-index:5}
+
+/* taskbar */
+#tbar{position:absolute;left:0;right:0;bottom:0;height:40px;display:flex;align-items:stretch;background:rgba(14,16,22,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:20}
+.tbi{position:relative;width:48px;display:flex;align-items:center;justify-content:center;flex:none}
+.tbi.hov{background:rgba(255,255,255,.1)}
+.tbi img{width:26px;height:26px}
+.tbi.run::after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;background:#76b9ed}
+.tbi.run{background:rgba(255,255,255,.08)}
+.tbi.run.hov{background:rgba(255,255,255,.16)}
+#start{width:48px}
+#start i{display:block;width:17px;height:17px;background:
+  linear-gradient(#fff,#fff) 0 0/7.5px 7.5px no-repeat,linear-gradient(#fff,#fff) 100% 0/7.5px 7.5px no-repeat,
+  linear-gradient(#fff,#fff) 0 100%/7.5px 7.5px no-repeat,linear-gradient(#fff,#fff) 100% 100%/7.5px 7.5px no-repeat}
+#search{width:300px;margin:0 6px 0 0;padding:0 12px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.92);color:#444;font-size:13px;flex:none}
+#search svg{width:15px;height:15px;stroke:#222;fill:none;stroke-width:1.6;margin-left:auto}
+.sp{flex:1}
+#tray{display:flex;align-items:center;gap:14px;padding:0 10px;font-size:12px;text-align:right;line-height:1.25}
+#tray svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.3}
+#tray .tm{display:block;white-space:nowrap}
+@media (max-width:1100px){#search{display:none}}
+
+/* fake cursor (Windows arrow) */
+#cur{position:fixed;left:0;top:0;width:22px;height:30px;z-index:99;pointer-events:none;will-change:transform;filter:drop-shadow(1px 2px 2px rgba(0,0,0,.45))}
+
+#keys{position:fixed;left:50%;bottom:62px;transform:translate(-50%,10px);z-index:60;padding:10px 20px;border-radius:12px;background:rgba(10,12,18,.9);border:1px solid rgba(255,255,255,.25);font:800 24px "Segoe UI",sans-serif;letter-spacing:.04em;opacity:0;transition:all .18s;pointer-events:none}
+#keys.show{opacity:1;transform:translate(-50%,0)}
+#dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:25;width:440px;background:#f3f3f3;color:#111;box-shadow:0 24px 70px rgba(0,0,0,.65);border:1px solid #1883d7;font-size:13px}
+#dlg .h{background:#fff;padding:8px 12px;font-size:12px}#dlg .p{padding:8px 12px;border-bottom:1px solid #ddd;color:#555}
+#dlg ul{list-style:none;margin:0;padding:6px;background:#fff;height:132px}#dlg li{display:flex;align-items:center;gap:8px;padding:6px 8px}#dlg li img{width:22px;height:22px}#dlg li.sel{background:#cce8ff}
+#dlg .f{display:flex;justify-content:flex-end;gap:8px;padding:10px 12px}#dlg button{font:inherit;padding:5px 18px;background:#e1e1e1;border:1px solid #adadad}#dlg #dlgOk{border:2px solid #0078d7}
+/* control card */
+#ctl{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(2,6,20,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:default}
+#ctl.hide{display:none}
+#ctl .card{width:min(480px,92vw);padding:26px 28px;border-radius:12px;background:#16181f;border:1px solid rgba(255,255,255,.14);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#ctl h1{margin:0 0 6px;font-size:22px}#ctl p{margin:0 0 16px;font-size:14px;opacity:.72;line-height:1.5}
+#ctl label{display:flex;align-items:center;justify-content:space-between;margin:10px 0;font-size:14px}
+#ctl select{background:#23262f;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:6px 10px;font:inherit}
+#go{width:100%;margin-top:14px;padding:13px;border:0;border-radius:8px;background:linear-gradient(#ffd23f,#ffb000);color:#201400;font:800 17px "Segoe UI",sans-serif;cursor:pointer;box-shadow:0 5px 0 #a86f00}
+#go:active{transform:translateY(4px);box-shadow:0 1px 0 #a86f00}
+#ctl small{display:block;margin-top:14px;font-size:12px;opacity:.55;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="desk">
+  <div id="icons">
+    <div class="dicon" id="icApp" data-h><img src="assets/icon.png" alt="">Каретка</div>
+    <div class="dicon" data-h><img src="assets/ico-edge.png" alt="">Microsoft Edge</div>
+    <div class="dicon" data-h><img src="assets/ico-explorer.png" alt="">Проводник</div>
+    <div class="dicon" data-h><img src="assets/ico-word.png" alt="">Word</div>
+    <div class="dicon" data-h><img src="assets/ico-excel.png" alt="">Excel</div>
+    <div class="dicon" data-h><img src="assets/ico-photos.png" alt="">Фотографии</div>
+    <div class="dicon" data-h><img src="assets/ico-paint.png" alt="">Paint</div>
+    <div class="dicon" data-h><img src="assets/ico-calc.png" alt="">Калькулятор</div>
+  </div>
+  <div id="cap"></div>
+  <div id="wz"><div id="win">
+    <div id="tb"><div class="ti"><img src="assets/icon.png" alt="">Каретка</div>
+      <div class="cb"><svg viewBox="0 0 10 10"><path d="M0 5.5H10"/></svg></div>
+      <div class="cb"><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></div>
+      <div class="cb x"><svg viewBox="0 0 10 10"><path d="M0 0L10 10M10 0L0 10"/></svg></div></div>
+    <iframe id="fr" allow="autoplay"></iframe>
+    <div id="shield"></div>
+  </div></div>
+  <div id="tbar">
+    <div class="tbi" id="start" data-h><i></i></div>
+    <div id="search"><span>Введите здесь текст для поиска</span><svg viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L15 15"/></svg></div>
+    <div class="tbi" data-h><svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="#fff" stroke-width="1.3"><rect x="2" y="4" width="16" height="12"/><rect x="5" y="7" width="10" height="6"/></svg></div>
+    <div class="tbi" data-h><img src="assets/ico-edge.png" alt=""></div>
+    <div class="tbi" data-h><img src="assets/ico-explorer.png" alt=""></div>
+    <div class="tbi" data-h><img src="assets/ico-mail.png" alt=""></div>
+    <div class="tbi" data-h><img src="assets/ico-word.png" alt=""></div>
+    <div class="tbi" data-h><img src="assets/ico-excel.png" alt=""></div>
+    <div class="tbi" data-h><img src="assets/ico-terminal.png" alt=""></div>
+    <div class="tbi" id="tbApp" data-h><img src="assets/icon.png" alt=""></div>
+    <div class="sp"></div>
+    <div id="tray">
+      <svg viewBox="0 0 16 16"><path d="M3 10l5-5 5 5"/></svg>
+      <svg viewBox="0 0 16 16"><path d="M1 6a10 10 0 0114 0M3.5 8.8a6.5 6.5 0 019 0M6 11.4a3 3 0 014 0"/><circle cx="8" cy="13.5" r=".8" fill="#fff"/></svg>
+      <svg viewBox="0 0 16 16"><path d="M2 6h3l4-3v10l-4-3H2zM11.5 5.5a3.5 3.5 0 010 5"/></svg>
+      <span>РУС</span>
+      <span><b class="tm" id="clk">12:00</b><span class="tm" id="dt">24.11.2026</span></span>
+      <svg viewBox="0 0 16 16" style="margin-left:4px"><rect x="1.5" y="2.5" width="13" height="9"/><path d="M4 14l2-2.5h4L12 14"/></svg>
+    </div>
+  </div>
+</div>
+<svg id="cur" viewBox="0 0 12 19" style="transform:translate(900px,520px)"><path d="M.5.5V16.2L4.3 12.8L6.9 18.6L9.1 17.6L6.6 11.9H11.4Z" fill="#fff" stroke="#000" stroke-width="1" stroke-linejoin="round"/></svg>
+
+<div id="ctl"><div class="card">
+  <h1>Каретка — демо для TikTok</h1>
+  <p>Нажмите «Начать»: «человек» сам откроет программу, неспешно напечатает код с опечатками, нажмёт RUN, и принтер напечатает танцующий скелет из цифр. Звук включён — записывайте экран вместе со звуком.</p>
+  <label>Скорость<select id="spd"><option value="1" selected>1× — медленно, как человек</option><option value="1.5">1.5× — быстрее</option><option value="2.2">2.2× — быстро</option></select></label>
+  <label>Субтитры<select id="capOn"><option value="1" selected>Включены</option><option value="0">Выключены</option></select></label>
+  <button id="go">▶ Начать</button>
+  <small>Перезапуск: клавиша R или F5. Запись экрана: Win+Alt+R (Xbox Game Bar) или OBS. После старта не двигайте мышь.</small>
+</div></div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const CODE = String.raw`import math, random, time
+
+def hit(x, y, a):
+    vx, vy = a[2] - a[0], a[3] - a[1]
+    t = max(0, min(1, ((x - a[0]) * vx + (y - a[1]) * vy) / (vx * vx + vy * vy + 1e-9)))
+    return math.hypot(x - a[0] - t * vx, y - a[1] - t * vy)
+
+def skull(u, y):
+    eye = ((abs(u - 11) - 1.6) / 1) ** 2 + ((y - 3.8) / 1.1) ** 2 < 1
+    return ((u - 11) / 3.9) ** 2 + ((y - 3.6) / 3.3) ** 2 < 1 and not eye
+
+def bones(t):
+    B = [(11, 8.6, 11, 15.6), (7.5, 9.3, 14.5, 9.3), (7.2, 16.3, 14.8, 16.3)]
+    for k in range(4):
+        B.append((7.4 + k * .5, 10.4 + k * 1.3, 14.6 - k * .5, 10.4 + k * 1.3))
+    for m in (-1, 1):
+        for x, y, a, b, n in (
+            (11 + m * 3.5, 9.3, 1.57 - m * (1 + .9 * math.sin(t - m * 1.6)), -.8 * m, 3.8),
+            (11 + m * 2.5, 16.3, 1.57 + m * (.2 + .2 * math.sin(2 * t + m)), .35 * math.sin(2 * t - m), 4.4)):
+            for ang in (a, a + b):
+                B.append((x, y, x + n * math.cos(ang), y + n * math.sin(ang)))
+                x, y = B[-1][2], B[-1][3]
+    return B
+
+for n in range(100):
+    B = bones(n / 6)
+    rows = []
+    for y in range(27):
+        row = ""
+        for x in range(44):
+            on = skull(x / 2, y) or any(hit(x / 2, y, b) < .6 for b in B)
+            row += random.choice("0123456789") if on else " "
+        rows.append(row)
+    print("\033[H\033[2J" + "\n".join(rows), flush=True)
+    time.sleep(0.1)`;
+
+let SPEED = 1, CAPS = true;
+const fr = $('fr'), win = $('win'), wz = $('wz'), cur = $('cur'), capEl = $('cap');
+const sleep = ms => new Promise(r => setTimeout(r, ms / SPEED));
+const real = ms => new Promise(r => setTimeout(r, ms));
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const W = () => fr.contentWindow, DOC = () => fr.contentDocument;
+let zoomed = false;
+
+/* ---------- clock ---------- */
+function tick() { const d = new Date(), p = n => String(n).padStart(2, '0'); $('clk').textContent = p(d.getHours()) + ':' + p(d.getMinutes()); $('dt').textContent = p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear(); }
+tick(); setInterval(tick, 10000);
+
+/* ---------- captions ---------- */
+let capT;
+function cap(t) { if (!CAPS) return; clearTimeout(capT); capEl.classList.remove('show'); capT = setTimeout(() => { capEl.textContent = t; capEl.classList.add('show'); }, 200); }
+
+/* ---------- sound (what a room with a person in it sounds like) ---------- */
+let ctx, noiseBuf, scratchG, master, recDest;
+function tapIframe() {                      // copy the app's own sound (typewriter, printer…) into the recording mix
+  const w = W(); if (!w || w.__tap || !recDest) return; w.__tap = 1;
+  const orig = w.AudioNode.prototype.connect, taps = new WeakMap();
+  w.AudioNode.prototype.connect = function (dst, ...r) {
+    const res = orig.call(this, dst, ...r);
+    try {
+      if (dst && dst === this.context.destination) {
+        let d = taps.get(this.context);
+        if (!d) { d = this.context.createMediaStreamDestination(); taps.set(this.context, d); ctx.createMediaStreamSource(d.stream).connect(recDest); }
+        orig.call(this, d);
+      }
+    } catch (e) {}
+    return res;
+  };
+}
+function initSound() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 1; master.connect(ctx.destination);
+  recDest = ctx.createMediaStreamDestination(); master.connect(recDest);            // everything audible also goes to the recorder
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0); let b = 0;
+  for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; b = (b + .02 * w) / 1.02; d[i] = w * .6 + b * 6; }
+  const loop = (type, f, q, g) => { const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const gn = ctx.createGain(); gn.gain.value = g; s.connect(fl); fl.connect(gn); gn.connect(master); s.start(); return gn; };
+  loop('lowpass', 420, .7, .012);                    // quiet room / PC fan
+  scratchG = loop('bandpass', 1900, .9, 0);          // mouse sliding on a desk
+}
+function burst(freq, dur, vol, type) {
+  if (!ctx) return; const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = type || 'highpass'; f.frequency.value = freq;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + dur + .03);
+}
+function thock(freq, dur, vol) {
+  if (!ctx) return; const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(freq * 1.4, t); o.frequency.exponentialRampToValueAtTime(freq, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .02);
+}
+const mouseDown = () => { burst(2800 + rnd(-300, 300), .014, .26); thock(170 + rnd(-15, 15), .035, .2); };
+const mouseUp = () => { burst(3600 + rnd(-300, 300), .009, .11); thock(250, .022, .08); };
+function whoosh() {
+  if (!ctx) return; const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = .8; f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(2200, t + .35);
+  const g = ctx.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.09, t + .12); g.gain.exponentialRampToValueAtTime(.0001, t + .4);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + .45);
+}
+
+/* ---------- a human hand on the mouse ---------- */
+let bx = innerWidth * .66, by = innerHeight * .52, busy = false, lastX = bx, lastY = by, vel = 0;
+const tre = { a: rnd(0, 9), b: rnd(0, 9), c: rnd(0, 9) };
+function curXY(now) {                                   // base position + a faint hand tremor
+  const k = busy ? .25 : 1;
+  return [bx + (Math.sin(now / 410 + tre.a) * .5 + Math.sin(now / 113 + tre.b) * .22) * k, by + (Math.cos(now / 370 + tre.c) * .45 + Math.sin(now / 127 + tre.a) * .2) * k];
+}
+let hovEl = null;
+(function loop(now) {
+  const [x, y] = curXY(now);
+  cur.style.transform = `translate(${x}px,${y}px)`;
+  const sp = Math.hypot(x - lastX, y - lastY); vel = vel * .8 + sp * .2; lastX = x; lastY = y;
+  if (scratchG) scratchG.gain.setTargetAtTime(clamp(vel * .0035, 0, .05), ctx.currentTime, .03);
+  const els = document.elementsFromPoint(x, y), h = els.find(e => e.dataset && e.dataset.h !== undefined) || null;
+  if (h !== hovEl) { hovEl && hovEl.classList.remove('hov'); h && h.classList.add('hov'); hovEl = h; }
+  requestAnimationFrame(loop);
+})(performance.now());
+
+function toFrame(x, y) {
+  const r = fr.getBoundingClientRect();
+  if (zoomed || !win.classList.contains('open') || x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
+  return [x - r.left, y - r.top];
+}
+function feedMove() {
+  const p = toFrame(bx, by), w = W();
+  if (p && w) try { w.dispatchEvent(new w.MouseEvent('mousemove', { clientX: p[0], clientY: p[1], bubbles: true })); } catch (e) {}
+}
+const mj = t => t * t * t * (10 - 15 * t + 6 * t * t);                  // minimum-jerk velocity profile
+function sub(tx, ty, ms, bow) {                                         // one aimed movement
+  return new Promise(res => {
+    const sx = bx, sy = by, dx = tx - sx, dy = ty - sy, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d, off = bow * d;
+    const dur = ms / Math.pow(SPEED, .55), t0 = performance.now();
+    (function step(now) {
+      const t = clamp((now - t0) / dur, 0, 1), s = mj(t), c = Math.sin(Math.PI * s) * off;
+      bx = sx + dx * s + nx * c; by = sy + dy * s + ny * c; feedMove();
+      t < 1 ? requestAnimationFrame(step) : res();
+    })(t0);
+  });
+}
+async function moveTo(tx, ty) {                                          // ballistic jump, small overshoot, then corrections
+  busy = true;
+  const d = Math.hypot(tx - bx, ty - by);
+  if (d > 4) {
+    await real(rnd(90, 220) / Math.pow(SPEED, .4));                      // reaction time
+    const T = (240 + 170 * Math.log2(1 + d / 16)) * rnd(.92, 1.15), side = Math.random() < .5 ? -1 : 1;
+    const ov = d > 160 ? rnd(-.01, .045) : rnd(-.01, .015), er = Math.min(12, d * .035);
+    const ux = (tx - bx) / d, uy = (ty - by) / d;
+    await sub(tx + ux * d * ov + rnd(-er, er), ty + uy * d * ov + rnd(-er, er), T * .86, side * rnd(.015, .055));
+    for (let i = 0; i < 3 && Math.hypot(tx - bx, ty - by) > 1.4; i++) {
+      const dd = Math.hypot(tx - bx, ty - by);
+      await real(rnd(35, 120));
+      await sub(tx + (dd > 5 ? rnd(-1.2, 1.2) : rnd(-.3, .3)), ty + (dd > 5 ? rnd(-1.2, 1.2) : rnd(-.3, .3)), clamp(110 + dd * 9, 110, 300), side * rnd(0, .03));
+    }
+  }
+  busy = false;
+}
+setInterval(() => { if (!busy && !/scene=(eye|cat)/.test(location.search) && Math.random() < .35 && document.getElementById('ctl').classList.contains('hide')) { busy = true; sub(bx + rnd(-9, 9), by + rnd(-7, 7), rnd(160, 320), 0).then(() => busy = false); } }, 2600);
+
+async function click(el) {                                               // press, hold a human moment, release
+  mouseDown(); await real(rnd(65, 120)); mouseUp();
+}
+const center = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2 + rnd(-r.width * .12, r.width * .12), r.top + r.height / 2 + rnd(-r.height * .12, r.height * .12)]; };
+const centerIn = el => { const r = el.getBoundingClientRect(), f = fr.getBoundingClientRect(); return [f.left + r.left + r.width * rnd(.4, .6), f.top + r.top + r.height * rnd(.4, .6)]; };
+
+/* ---------- typing into the real app ---------- */
+function key(k, code, ctrl) { const w = W(); w.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, code: code || k, ctrlKey: !!ctrl, bubbles: true, cancelable: true })); }
+function freshSheet() { const w = W(); w.confirm = () => true; key('n', 'KeyN', true); }
+function typeCh(ch) { const s = DOC().getElementById('sink'), w = W(); s.value = ch; s.dispatchEvent(new w.Event('input', { bubbles: true })); }
+const NB = { a: 'sq', b: 'vn', c: 'xv', d: 'sf', e: 'wr', f: 'dg', g: 'fh', h: 'gj', i: 'uo', j: 'hk', k: 'jl', l: 'k', m: 'n', n: 'bm', o: 'ip', p: 'o', q: 'w', r: 'et', s: 'ad', t: 'ry', u: 'yi', v: 'cb', w: 'qe', x: 'zc', y: 'tu', z: 'x' };
+const mult = () => 1;                                                          // always a human pace: no fast-forward (it made the app stutter)
+async function typeCode(code, onProgress, typos = true) {
+  const lines = code.split('\n'); let n = 0;
+  for (const line of lines) {
+    let i = 0;
+    while (line.startsWith('    ', i)) { key('Tab'); i += 4; n += 4; await sleep(rnd(110, 190) * mult(n)); }
+    for (; i < line.length; i++) {
+      const ch = line[i], m = mult(n);
+      if (typos && n < 900 && /[a-z]/.test(ch) && NB[ch] && Math.random() < .03) {     // a typo, a pause, backspace
+        let wrong = 1; typeCh(NB[ch][(Math.random() * NB[ch].length) | 0]); await sleep(rnd(70, 130));
+        if (line[i + 1] && Math.random() < .4) { typeCh(line[i + 1]); wrong = 2; await sleep(rnd(80, 140)); }
+        await sleep(rnd(260, 520));
+        for (let k = 0; k < wrong; k++) { key('Backspace'); await sleep(rnd(120, 200)); }
+        await sleep(rnd(90, 180));
+      }
+      typeCh(ch); n++;
+      let d = rnd(62, 125) * m;
+      if (ch === ' ') d += 25 * m;
+      if (',:(=+<'.includes(ch)) d += rnd(50, 150) * m;
+      if (Math.random() < .035 * (m > .6 ? 1 : .3)) d += rnd(220, 480) * m;   // a moment of thought
+      await sleep(d);
+    }
+    key('Enter'); n++; onProgress && onProgress(n);
+    await sleep((line ? rnd(340, 620) : rnd(220, 380)) * mult(n));
+  }
+}
+async function until(fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (fn()) return true; } catch (e) {} await real(120); } return false; }
+
+function zoom(s, ox, oy, ms) {
+  if (s !== 1) { wz.style.transformOrigin = `${ox}px ${oy}px`; wz.style.transition = 'none'; void wz.offsetWidth; }
+  wz.style.transition = `transform ${ms}ms cubic-bezier(.45,0,.2,1)`;
+  wz.style.transform = s === 1 ? 'none' : `scale(${s})`; zoomed = s !== 1;
+}
+
+/* ---------- the screenplay ---------- */
+async function show() {
+  fr.src = '/';                                            // preload the app while the desktop is on screen
+  const loaded = until(() => DOC() && DOC().getElementById('runKey') && DOC().getElementById('start'), 15000);
+  await sleep(700);
+  cap('Печатная машинка, которая запускает код 🤯');
+  await sleep(2600);
+
+  const ic = $('icApp'); const [ix, iy] = center(ic);
+  await moveTo(ix, iy); await sleep(380);
+  await click(); ic.classList.add('sel'); await sleep(330);                  // select …
+  await click(); await real(rnd(90, 140)); await click();                    // … and double-click
+  const wr = win.getBoundingClientRect(); win.style.transformOrigin = `${ix - wr.left}px ${iy - wr.top}px`;
+  whoosh(); win.classList.add('open'); $('tbApp').classList.add('run');
+  await sleep(700);
+  cap('Я сделал программу-печатную машинку ⌨️');
+  const fb = fr.getBoundingClientRect();
+  await moveTo(fb.left + fb.width * .62, fb.top + fb.height * .55);
+  await loaded; await sleep(1000);
+  DOC().head.insertAdjacentHTML('beforeend', '<style>#poBar{display:none!important}</style>');   // no save buttons in the video
+  tapIframe();
+
+  const startBtn = DOC().getElementById('start');
+  if (startBtn && !DOC().getElementById('intro').classList.contains('hide')) {
+    const [sx, sy] = centerIn(startBtn); await moveTo(sx, sy); await sleep(420); await click(); startBtn.click();
+  }
+  await sleep(1100); freshSheet(); await sleep(1500);
+  await moveTo(fb.left + fb.width * .7, fb.top + fb.height * .3); await sleep(500);
+
+  cap('Пишу код вручную. Каждая буква — как на настоящей машинке 🔊');
+  let a = false, b = false;
+  await typeCode(CODE, n => {
+    if (!a && n > CODE.length * .35) { a = true; cap('Это код: он рисует скелет цифрами 💀'); }
+    if (!b && n > CODE.length * .78) { b = true; cap('Почти готово… 🤞'); }
+  });
+  await sleep(1300);
+
+  cap('Теперь жму RUN ▶');
+  const run = DOC().getElementById('runKey'), [rx, ry] = centerIn(run);
+  await moveTo(rx, ry); await sleep(rnd(700, 1100));
+  const w = W(), ev = (t, C) => run.dispatchEvent(new w[C](t, { bubbles: true }));
+  mouseDown(); run.classList.add('down'); ev('pointerdown', 'PointerEvent'); await real(rnd(90, 130));
+  mouseUp(); run.classList.remove('down'); ev('pointerup', 'PointerEvent'); run.click();
+  await moveTo(bx + rnd(60, 110), by + rnd(80, 120));
+
+  cap('Принтер печатает результат прямо на бумаге 🖨️');
+  await until(() => run.classList.contains('running'), 6000);
+  await moveTo(bx + rnd(40, 90), by + rnd(30, 70));                                 // the hand rests; the whole print is shown
+  await until(() => !run.classList.contains('running'), 90000);
+  await sleep(5200);                                                                // hold: the finished sheet, fully visible
+  cap('Скелет из цифр. Попробуй сам 👇');
+  await sleep(4200);
+}
+
+/* ---------- scene "eye": a person shows the app as a small code editor and prints a picture in digits ---------- */
+async function showEye() {
+  const DI = () => DOC(), q = s => DI().querySelector(s), qa = s => [...DI().querySelectorAll(s)];
+  const rowOf = n => qa('.fxRow').find(r => r.title === n);
+  const keysEl = document.createElement('div'); keysEl.id = 'keys'; document.body.append(keysEl);
+  let keyT; const keys = t => { clearTimeout(keyT); keysEl.textContent = t; keysEl.classList.add('show'); burst(1500, .03, .16); thock(120, .05, .13); keyT = setTimeout(() => keysEl.classList.remove('show'), 1500); };
+  const tap = () => { burst(2000 + rnd(-300, 300), .018, .1); thock(150 + rnd(-20, 20), .03, .08); };
+  async function press(el, pause) {                       // go there, look, click
+    const [x, y] = centerIn(el); await moveTo(x, y); await real(pause || rnd(350, 650));
+    mouseDown(); await real(rnd(80, 130)); mouseUp(); el.click();
+  }
+  const typeInto = async (el, text) => { for (const ch of text) { el.setRangeText(ch, el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new (W().Event)('input', { bubbles: true })); tap(); await real(rnd(130, 260)); } };
+
+  fr.src = '/';
+  const loaded = until(() => DI() && q('#runKey') && q('#start') && q('#bFiles'), 15000);
+  await real(900); cap('Моя печатная машинка — ещё и редактор кода 👀'); await real(2600);
+  const ic = $('icApp'); const [ix, iy] = center(ic);
+  await moveTo(ix, iy); await real(450); await click(); ic.classList.add('sel'); await real(360); await click(); await real(110); await click();
+  const wr = win.getBoundingClientRect(); win.style.transformOrigin = `${ix - wr.left}px ${iy - wr.top}px`;
+  whoosh(); win.classList.add('open'); $('tbApp').classList.add('run');
+  await loaded; await real(900);
+  DI().head.insertAdjacentHTML('beforeend', '<style>#poBar{display:none!important}</style>');
+  tapIframe();
+
+  /* the Windows folder dialog cannot appear inside a page recording: this demo shows a drawn one instead */
+  let chosen = false, pickDone = null; const w = W(), realFetch = w.fetch.bind(w);
+  w.fetch = async (u, o) => {
+    if (String(u).startsWith('/api/ws/info') && !chosen) return new w.Response(JSON.stringify({ root: null, name: null, cwd: null, suggestions: [] }));
+    if (String(u).startsWith('/api/ws/pick')) {
+      await new Promise(r => { pickDone = r; });
+      chosen = true; const info = await (await realFetch('/api/ws/info', o && { headers: o.headers })).json();
+      return new w.Response(JSON.stringify({ ...info, picked: true }));
+    }
+    return realFetch(u, o);
+  };
+  const startBtn = q('#start'); if (startBtn && !q('#intro').classList.contains('hide')) await press(startBtn);
+  await real(1200); freshSheet(); await real(1800);
+
+  cap('Сначала открываю папку проекта 📂');
+  await press(q('#bFiles'), 700); await real(1400);
+  await press(q('#fxOpen2'), 600); await real(600);
+  const dlg = document.createElement('div'); dlg.id = 'dlg';
+  dlg.innerHTML = '<div class="h">Выбор папки</div><div class="p">Этот компьютер › Рабочий стол</div><ul><li><img src="assets/ico-explorer.png">Документы</li><li id="dlgEye"><img src="assets/ico-explorer.png">eye-project</li><li><img src="assets/ico-explorer.png">Фото</li></ul><div class="f"><button id="dlgOk">Выбор папки</button><button>Отмена</button></div>';
+  document.getElementById('desk').append(dlg); whoosh(); await real(1300);
+  const clickLocal = async el => { const [x, y] = center(el); await moveTo(x, y); await real(rnd(400, 700)); await click(); };
+  await clickLocal($('dlgEye')); $('dlgEye').classList.add('sel'); await real(500);
+  await clickLocal($('dlgOk')); dlg.remove(); pickDone && pickDone();
+  await until(() => rowOf('eye.py'), 8000); await real(1600);
+
+  cap('Внутри картинка…');
+  await press(rowOf('eye.png')); await real(3200);
+  cap('…и код на Python 🐍');
+  await press(rowOf('eye.py')); await real(3500);
+
+  cap('Можно редактировать прямо здесь, как в VS Code ✏️');
+  const ta = q('#fxTa'), at = ta.value.indexOf('W = 90') + 'W = 90'.length;
+  const line = ta.value.slice(0, at).split('\n').length - 1, tr = ta.getBoundingClientRect(), fb = fr.getBoundingClientRect();
+  await moveTo(fb.left + tr.left + 12 + 7 * 7.45, fb.top + tr.top + 8 + line * 20 + 10); await real(500); await click();
+  ta.focus(); ta.setSelectionRange(at, at); await real(900);
+  for (let i = 0; i < 2; i++) { ta.setRangeText('', ta.selectionStart - 1, ta.selectionStart, 'end'); ta.dispatchEvent(new w.Event('input', { bubbles: true })); tap(); await real(rnd(220, 330)); }
+  await real(600); await typeInto(ta, '110'); await real(1200);
+  keys('Ctrl + S'); ta.dispatchEvent(new w.KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true, bubbles: true, cancelable: true })); await real(1800);
+
+  cap('Есть и терминал: любые команды 💻');
+  const cmd = q('#fxCmd'); await press(cmd); cmd.focus(); await real(500);
+  await typeInto(cmd, 'dir /b'); await real(500); tap(); cmd.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await real(3200);
+
+  cap('Копирую код…');
+  const [ex, ey] = [fb.left + tr.left + tr.width * .45, fb.top + tr.top + tr.height * .35]; await moveTo(ex, ey); await real(400); await click(); ta.focus();
+  await real(500); keys('Ctrl + A'); ta.select(); await real(1400); keys('Ctrl + C'); const code = ta.value.trimEnd(); await real(1700);
+  await press(q('#fxClose')); await real(1300);
+
+  cap('…и вставляю в печатную машинку ⌨️');
+  const fb2 = fr.getBoundingClientRect(); await moveTo(fb2.left + fb2.width * .7, fb2.top + fb2.height * .32); await real(700);
+  keys('Ctrl + V');
+  const dt = new w.DataTransfer(); dt.setData('text/plain', code);
+  w.document.body.dispatchEvent(new w.ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  const want = code.replace(/\s+/g, '').length;
+  let half = false;
+  await until(() => { const n = w.__K.getCode().replace(/\s+/g, '').length; if (!half && n > want * .5) { half = true; cap('Машинка сама перепечатывает каждую букву 🔊'); } return n >= want; }, 240000);
+  await real(2200);
+
+  cap('Нажимаю RUN ▶');
+  const run = q('#runKey'), [rx, ry] = centerIn(run); await moveTo(rx, ry); await real(900);
+  const ev = (t, C) => run.dispatchEvent(new w[C](t, { bubbles: true }));
+  mouseDown(); run.classList.add('down'); ev('pointerdown', 'PointerEvent'); await real(120); mouseUp(); run.classList.remove('down'); ev('pointerup', 'PointerEvent'); run.click();
+  await moveTo(bx + rnd(70, 110), by + rnd(60, 100));
+  cap('Принтер печатает картинку цифрами 🖨️');
+  await until(() => run.classList.contains('running'), 6000);
+  await until(() => !run.classList.contains('running'), 110000);
+  await real(1200); cap('Каждая точка здесь — это цифра 🤯'); await real(5500);
+
+  cap('Посмотрим поближе 🔍');
+  await press(q('#bFiles'), 700); await real(900);
+  await press(q('#fxReload')); await until(() => rowOf('eye_digits.png'), 8000); await real(700);
+  await press(rowOf('eye_digits.png')); await real(3000);
+  const box = q('#fxImg'), img = box.querySelector('img');
+  const ir = img.getBoundingClientRect(), fb3 = fr.getBoundingClientRect();
+  const px = ir.left + ir.width * .5, py = ir.top + ir.height * .47;
+  await moveTo(fb3.left + px, fb3.top + py); await real(700); mouseDown(); await real(100); mouseUp();
+  img.dispatchEvent(new w.MouseEvent('click', { clientX: px, clientY: py, bubbles: true })); await real(3500);
+  const wheel = async (dx, dy, n) => { for (let i = 0; i < n; i++) { for (let k = 0; k < 8; k++) { box.scrollLeft += dx / 8; box.scrollTop += dy / 8; await real(16); } tap(); await real(rnd(500, 800)); } };
+  await wheel(-110, 0, 3); await wheel(0, 110, 2); await wheel(110, -60, 4); await real(1500);
+  mouseDown(); await real(100); mouseUp(); img.dispatchEvent(new w.MouseEvent('click', { clientX: px, clientY: py, bubbles: true })); await real(1800);
+  cap('Редактор, терминал и печатная машинка в одном. Попробуешь? 👇');
+  await real(4500);
+}
+
+/* ---------- scene "cat": a network draws the cat from noise while a second one guesses what it is ---------- */
+async function showCat() {
+  const DI = () => DOC(), q = s => DI().querySelector(s), qa = s => [...DI().querySelectorAll(s)];
+  const rowOf = n => qa('.fxRow').find(r => r.title === n);
+  async function press(el, pause) {
+    const [x, y] = centerIn(el); await moveTo(x, y); await real(pause || rnd(350, 650));
+    mouseDown(); await real(rnd(80, 130)); mouseUp(); el.click();
+  }
+  fr.src = '/';
+  const loaded = until(() => DI() && q('#runKey') && q('#start') && q('#bFiles'), 15000);
+  await real(900); cap('Нейросеть учится рисовать кота с нуля 🐱'); await real(2400);
+  const ic = $('icApp'); const [ix, iy] = center(ic);
+  await moveTo(ix, iy); await real(420); await click(); ic.classList.add('sel'); await real(340); await click(); await real(110); await click();
+  const wr = win.getBoundingClientRect(); win.style.transformOrigin = (ix - wr.left) + 'px ' + (iy - wr.top) + 'px';
+  whoosh(); win.classList.add('open'); $('tbApp').classList.add('run');
+  await loaded; await real(800);
+  DI().head.insertAdjacentHTML('beforeend', '<style>#poBar{display:none!important}</style>');
+  tapIframe();
+  let chosen = false, pickDone = null; const w = W(), realFetch = w.fetch.bind(w);      // drawn folder dialog (the real one cannot be captured)
+  w.fetch = async (u, o) => {
+    if (String(u).startsWith('/api/ws/info') && !chosen) return new w.Response(JSON.stringify({ root: null, name: null, cwd: null, suggestions: [] }));
+    if (String(u).startsWith('/api/ws/pick')) {
+      await new Promise(r => { pickDone = r; });
+      chosen = true; const info = await (await realFetch('/api/ws/info', o && { headers: o.headers })).json();
+      return new w.Response(JSON.stringify({ ...info, picked: true }));
+    }
+    return realFetch(u, o);
+  };
+  const startBtn = q('#start'); if (startBtn && !q('#intro').classList.contains('hide')) await press(startBtn);
+  await real(900); freshSheet(); await real(1500);
+
+  cap('Открываю проект 📂');
+  await press(q('#bFiles'), 550); await real(900);
+  await press(q('#fxOpen2'), 500); await real(500);
+  const dlg = document.createElement('div'); dlg.id = 'dlg';
+  dlg.innerHTML = '<div class="h">Выбор папки</div><div class="p">Этот компьютер › Рабочий стол</div><ul><li><img src="assets/ico-explorer.png">Документы</li><li id="dlgPick"><img src="assets/ico-explorer.png">neural-cat</li><li><img src="assets/ico-explorer.png">Фото</li></ul><div class="f"><button id="dlgOk">Выбор папки</button><button>Отмена</button></div>';
+  document.getElementById('desk').append(dlg); whoosh(); await real(1000);
+  const clickLocal = async el => { const [x, y] = center(el); await moveTo(x, y); await real(rnd(350, 600)); await click(); };
+  await clickLocal($('dlgPick')); $('dlgPick').classList.add('sel'); await real(450);
+  await clickLocal($('dlgOk')); dlg.remove(); pickDone && pickDone();
+  await until(() => rowOf('net.py'), 8000); await real(1100);
+
+  cap('Вот фото. Фон программа вырежет ✂️');
+  await press(rowOf('photo-original.png')); await real(3200);
+  cap('Две нейросети: одна рисует, вторая угадывает 🧠');
+  await press(rowOf('net.py')); await real(1400);
+  const ta = q('#fxTa'), fb = fr.getBoundingClientRect(), tr = ta.getBoundingClientRect();
+  await moveTo(fb.left + tr.left + tr.width * .6, fb.top + tr.top + tr.height * .5); await real(500);
+  for (let i = 0; i < 22; i++) { ta.scrollTop += 95; ta.dispatchEvent(new w.Event('scroll')); await real(rnd(130, 240)); }
+  await real(900);
+  await press(q('#fxClose')); await real(1200);
+
+  cap('Запускаю из печатной машинки ⌨️');
+  const fb2 = fr.getBoundingClientRect(); await moveTo(fb2.left + fb2.width * .7, fb2.top + fb2.height * .32); await real(600);
+  const typed = "import os\np = '~/Desktop/neural-cat/net.py'\nexec(open(os.path.expanduser(p), encoding='utf8').read())";   // short lines: no wrapping
+  await typeCode(typed, null, false);
+  await real(900);
+  if (w.__K.getCode().trim() !== typed) throw new Error('typed code differs: ' + JSON.stringify(w.__K.getCode()));
+
+  cap('Жму RUN ▶');
+  const run = q('#runKey'), [rx, ry] = centerIn(run); await moveTo(rx, ry); await real(900);
+  const ev = (t, C) => run.dispatchEvent(new w[C](t, { bubbles: true }));
+  mouseDown(); run.classList.add('down'); ev('pointerdown', 'PointerEvent'); await real(120); mouseUp(); run.classList.remove('down'); ev('pointerup', 'PointerEvent'); run.click();
+  await moveTo(bx + rnd(90, 130), by + rnd(60, 100));
+  await until(() => run.classList.contains('running'), 6000);
+  cap('Сначала только шум… 🌫️');
+  const t0 = Date.now(); let a = false, b = false;
+  await until(() => {
+    const t = Date.now() - t0;
+    if (!a && t > 9000) { a = true; cap('Вторая сеть угадывает прямо во время рисования 👀'); }
+    if (!b && t > 24000) { b = true; cap('Досмотри до конца 👇'); }
+    return !run.classList.contains('running');
+  }, 125000);
+  await real(1800); cap('3000 шагов — и сеть узнала кота 🤯'); await real(5000);
+  cap('Какую картинку проверить следующей? Пиши 💬'); await real(4000);
+}
+
+/* ---------- recording mode (?rec=1): the page records itself — picture + sound — and uploads the WebM to record-demo.js ---------- */
+const Q = new URLSearchParams(location.search);
+if (Q.get('rec') === '1') $('ctl').classList.add('hide');
+window.__rec = { state: 'idle', err: '' };
+window.__startRec = async () => {
+  try {
+    SPEED = parseFloat(Q.get('speed')) || 1; CAPS = Q.get('cap') !== '0'; initSound(); if (ctx && ctx.state === 'suspended') await ctx.resume();
+    // picture comes from the DevTools screencast (record-demo.js); here we record only the SOUND, straight from the audio graph
+    const rec = new MediaRecorder(recDest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 192e3 });
+    const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = new Promise(r => { rec.onstop = r; });
+    rec.onstart = () => { window.__rec.t0 = Date.now(); window.__rec.state = 'recording'; };
+    rec.start(500);
+    await real(900);
+    await ({ eye: showEye, cat: showCat }[Q.get('scene')] || show)();
+    await real(700);
+    rec.stop(); await stopped;
+    window.__rec.state = 'uploading';
+    const r = await fetch(Q.get('up'), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: new Blob(chunks, { type: 'audio/webm' }) });
+    window.__rec.state = r.ok ? 'done' : 'error'; if (!r.ok) window.__rec.err = 'upload ' + r.status;
+  } catch (e) { window.__rec = { state: 'error', err: String((e && e.stack) || e) }; }
+};
+
+/* ---------- start ---------- */
+$('go').onclick = () => {
+  SPEED = parseFloat($('spd').value) || 1; CAPS = $('capOn').value === '1';
+  initSound(); $('ctl').classList.add('hide');
+  ({ eye: showEye, cat: showCat }[Q.get('scene')] || show)().catch(e => { console.error(e); cap('Ошибка: ' + e.message); });
+};
+addEventListener('keydown', e => { if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') location.reload(); });
+})();
+</script>
+</body>
+</html>
